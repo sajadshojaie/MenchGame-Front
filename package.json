@@ -1,0 +1,37 @@
+{
+  "name": "manch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "start": "vite preview",
+    "lint": "eslint .",
+    "test:rules": "tsx scripts/test-rules.ts"
+  },
+  "dependencies": {
+    "@microsoft/signalr": "^10.0.11",
+    "@fontsource-variable/vazirmatn": "^5.2.6",
+    "framer-motion": "^13.5.0",
+    "lucide-react": "^1.49.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9",
+    "@tailwindcss/vite": "^4",
+    "@vitejs/plugin-react": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^7",
+    "globals": "^16",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "typescript-eslint": "^8",
+    "vite": "^7"
+  }
+}
