@@ -469,11 +469,9 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
   const colors = seatChoices(state.maxPlayers);
   return (
     <div>
-      {online ? null : (
-        <h2 className="font-display text-3xl text-[#14324f]">
-          {state.roomId ?? "منچ بازی"}
-        </h2>
-      )}
+      <h2 className="font-display text-3xl text-[#14324f]">
+        {state.roomId ?? "منچ بازی"}
+      </h2>
       <section className="mt-4 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-lg shadow-slate-900/5 dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/20">
         <div className="flex items-center gap-3 border-b border-slate-200/70 bg-gradient-to-l from-sky-50 to-white px-4 py-3 dark:border-white/10 dark:from-slate-800 dark:to-slate-900">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300">
@@ -509,7 +507,9 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
                   زمان پرتاب تاس
                 </p>
                 <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                  {state.rollTimerEnabled ? "۱۵ ثانیه برای هر نوبت" : "بدون محدودیت زمانی"}
+                  {state.rollTimerEnabled
+                    ? "۱۵ ثانیه برای هر نوبت"
+                    : "بدون محدودیت زمانی"}
                 </p>
               </div>
               <button
@@ -520,7 +520,9 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
                 title={isHost ? "تغییر تایمر نوبت" : "فقط میزبان می‌تواند تغییر دهد"}
                 disabled={!isHost}
                 className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-60 ${
-                  state.rollTimerEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                  state.rollTimerEnabled
+                    ? "bg-emerald-500"
+                    : "bg-slate-300 dark:bg-slate-600"
                 }`}
                 onClick={() =>
                   onAct({ type: "set-roll-timer", enabled: !state.rollTimerEnabled })
@@ -544,65 +546,70 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
             </div>
             <div className="space-y-2">
               {state.players.map((player) => {
-                    const currentTheme = PLAYER_THEMES[player.seat];
-                    return (
-                      <div
-                        key={player.id}
-                        className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-800/70"
-                      >
-                        <span
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white shadow-sm"
-                          style={{ backgroundColor: currentTheme.hex }}
-                        >
-                          {player.name.trim().slice(0, 1)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
-                            {player.name}
-                          </p>
-                        </div>
-                        <div
-                          className="flex shrink-0 items-center gap-1.5"
-                          role="group"
-                          aria-label={`انتخاب رنگ برای ${player.name}`}
-                        >
-                          {colors.map((seat) => {
-                            const theme = PLAYER_THEMES[seat];
-                            const selected = player.seat === seat;
-                            return (
-                              <button
-                                key={theme.id}
-                                type="button"
-                                className={`grid h-6 w-6 place-items-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
-                                  selected
-                                    ? "ring-2 ring-slate-800 ring-offset-2 ring-offset-white dark:ring-white dark:ring-offset-slate-800"
-                                    : isHost
-                                      ? "hover:scale-110"
-                                      : "cursor-default"
-                                }`}
-                                style={{ backgroundColor: theme.hex }}
-                                aria-label={`${player.name}: ${theme.label}`}
-                                aria-pressed={selected}
-                                title={`${player.name} · ${theme.label}`}
-                                disabled={!isHost || selected}
-                                onClick={() =>
-                                  onAct({
-                                    type: "set-player-seat",
-                                    playerId: player.id,
-                                    seat,
-                                  })
-                                }
-                              >
-                                {selected ? <Check size={13} className="text-white drop-shadow" /> : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+                const currentTheme = PLAYER_THEMES[player.seat];
+                return (
+                  <div
+                    key={player.id}
+                    className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-800/70"
+                  >
+                    <span
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white shadow-sm"
+                      style={{ backgroundColor: currentTheme.hex }}
+                    >
+                      {player.name.trim().slice(0, 1)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                        {player.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {currentTheme.label}
+                      </p>
+                    </div>
+                    <div
+                      className="flex shrink-0 items-center gap-1.5"
+                      role="group"
+                      aria-label={`انتخاب رنگ برای ${player.name}`}
+                    >
+                      {colors.map((seat) => {
+                        const theme = PLAYER_THEMES[seat];
+                        const selected = player.seat === seat;
+                        return (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            className={`grid h-6 w-6 place-items-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+                              selected
+                                ? "ring-2 ring-slate-800 ring-offset-2 ring-offset-white dark:ring-white dark:ring-offset-slate-800"
+                                : isHost
+                                  ? "hover:scale-110"
+                                  : "cursor-default"
+                            }`}
+                            style={{ backgroundColor: theme.hex }}
+                            aria-label={`${player.name}: ${theme.label}`}
+                            aria-pressed={selected}
+                            title={`${player.name} · ${theme.label}`}
+                            disabled={!isHost || selected}
+                            onClick={() =>
+                              onAct({
+                                type: "set-player-seat",
+                                playerId: player.id,
+                                seat,
+                              })
+                            }
+                          >
+                            {selected ? (
+                              <Check size={13} className="text-white drop-shadow" />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
       {isHost || !online ? (

@@ -104,7 +104,7 @@ export async function connectRoom(
     handlers.onPeerLeave(peerId, Boolean(explicit));
   });
   connection.on("Receive", (message: unknown, from: string) => {
-    if (gone || from === selfId || !isWire(message)) return;
+    if (gone || !isWire(message) || (from === selfId && message.kind !== "state")) return;
     notePeer(from);
     handlers.onStatus("live");
     handlers.onMessage(message, from);
