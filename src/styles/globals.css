@@ -114,7 +114,7 @@ html.dark body {
 }
 
 .token-plane {
-  filter: drop-shadow(0 2px 1px rgba(12, 40, 70, 0.28));
+  filter: drop-shadow(0 0 1px rgba(12, 40, 70, 0.28));
 }
 
 .token-pad {

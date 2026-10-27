@@ -4,9 +4,12 @@ import {
   Bot,
   Copy,
   Check,
+  Clock3,
   LogOut,
   Menu,
+  Palette,
   RotateCcw,
+  Settings2,
   Trophy,
   UserPlus,
   Volume2,
@@ -466,110 +469,140 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
   const colors = seatChoices(state.maxPlayers);
   return (
     <div>
-      <h2 className="font-display text-3xl text-[#14324f]">
-        {state.roomId ?? "منچ بازی"}
-      </h2>
-      <ul className="mt-4 space-y-2">
-        {state.players.map((player) => {
-          const theme = themeFor(player.seat);
-          return (
-            <li
-              key={player.id}
-              className="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-2"
-            >
-              <span className="h-8 w-8 rounded-full" style={{ background: theme.hex }} />
-              <span className="flex-1">{player.name}</span>
-              {online && player.kind === "human" ? (
-                <LinkDot on={player.connected} />
-              ) : null}
-              <span className="text-xs text-[#5a7e99]">
-                {player.kind === "bot" ? "ربات" : theme.label}
-              </span>
-            </li>
-          );
-        })}
-        {Array.from({ length: empty }, (_, index) => (
-          <li
-            key={`empty-${index}`}
-            className="rounded-2xl border border-dashed border-[#14324f]/20 px-3 py-3 text-sm text-[#5a7e99]"
-          >
-            جای خالی
-          </li>
-        ))}
-      </ul>
-      <section className="mt-4 rounded-2xl border border-[#14324f]/10 bg-white/70 p-3">
-        <h3 className="text-sm font-extrabold text-[#14324f]">تنظیمات بازی</h3>
-        <div className="mt-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-[#24506f]">
-              زمان برای پرتاب تاس
-            </span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={state.rollTimerEnabled}
-              aria-label="تایمر پرتاب تاس"
-              disabled={!isHost}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
-                state.rollTimerEnabled ? "bg-emerald-500" : "bg-slate-400"
-              }`}
-              onClick={() =>
-                onAct({ type: "set-roll-timer", enabled: !state.rollTimerEnabled })
-              }
-            >
-              <span
-                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                  state.rollTimerEnabled ? "right-1" : "right-6"
-                }`}
-              />
-            </button>
-          </div>
-          <p className="mt-1 text-xs text-[#5a7e99]">
-            {state.rollTimerEnabled ? "هر نوبت ۱۵ ثانیه" : "بدون محدودیت زمانی"}
-            {!isHost ? " · فقط میزبان می‌تواند تغییر دهد" : ""}
-          </p>
-        </div>
-        <div className="mt-4 space-y-3">
-          <p className="text-sm font-semibold text-[#24506f]">رنگ مهرهٔ بازیکن‌ها</p>
-          {state.players.map((player) => (
-            <div key={player.id} className="flex items-center justify-between gap-3">
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#14324f]">
-                {player.name}
-              </span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                {colors.map((seat) => {
-                  const theme = PLAYER_THEMES[seat];
-                  const selected = player.seat === seat;
-                  return (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      className={`h-6 w-6 rounded-full transition-transform ${
-                        selected ? "ring-2 ring-[#14324f] ring-offset-2" : ""
-                      } ${isHost ? "hover:scale-110" : "cursor-default"}`}
-                      style={{ backgroundColor: theme.hex }}
-                      aria-label={`${player.name}: ${theme.label}`}
-                      aria-pressed={selected}
-                      title={`${player.name} · ${theme.label}`}
-                      disabled={!isHost || selected}
-                      onClick={() =>
-                        onAct({
-                          type: "set-player-seat",
-                          playerId: player.id,
-                          seat,
-                        })
-                      }
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {!isHost ? (
-            <p className="text-xs text-[#5a7e99]">
-              فقط میزبان می‌تواند تنظیمات را تغییر دهد.
+      {online ? null : (
+        <h2 className="font-display text-3xl text-[#14324f]">
+          {state.roomId ?? "منچ بازی"}
+        </h2>
+      )}
+      <section className="mt-4 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-lg shadow-slate-900/5 dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/20">
+        <div className="flex items-center gap-3 border-b border-slate-200/70 bg-gradient-to-l from-sky-50 to-white px-4 py-3 dark:border-white/10 dark:from-slate-800 dark:to-slate-900">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300">
+            <Settings2 size={19} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+              تنظیمات بازی
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              شخصی‌سازی قوانین و رنگ‌ها
             </p>
-          ) : null}
+          </div>
+          {isHost ? (
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+              میزبان
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-500 dark:bg-white/5 dark:text-slate-400">
+              <span aria-hidden="true">●</span> فقط مشاهده
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-4 p-3">
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
+            <div className="flex items-center gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300">
+                <Clock3 size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  زمان پرتاب تاس
+                </p>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {state.rollTimerEnabled ? "۱۵ ثانیه برای هر نوبت" : "بدون محدودیت زمانی"}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={state.rollTimerEnabled}
+                aria-label="تایمر پرتاب تاس"
+                title={isHost ? "تغییر تایمر نوبت" : "فقط میزبان می‌تواند تغییر دهد"}
+                disabled={!isHost}
+                className={`relative h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-900 disabled:cursor-not-allowed disabled:opacity-60 ${
+                  state.rollTimerEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                }`}
+                onClick={() =>
+                  onAct({ type: "set-roll-timer", enabled: !state.rollTimerEnabled })
+                }
+              >
+                <span
+                  className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
+                    state.rollTimerEnabled ? "right-1" : "right-6"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center gap-2 px-1">
+              <Palette size={15} className="text-slate-500 dark:text-slate-400" />
+              <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                رنگ مهره‌های بازیکنان
+              </p>
+            </div>
+            <div className="space-y-2">
+              {state.players.map((player) => {
+                    const currentTheme = PLAYER_THEMES[player.seat];
+                    return (
+                      <div
+                        key={player.id}
+                        className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-slate-200/70 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-800/70"
+                      >
+                        <span
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-sm font-extrabold text-white shadow-sm"
+                          style={{ backgroundColor: currentTheme.hex }}
+                        >
+                          {player.name.trim().slice(0, 1)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
+                            {player.name}
+                          </p>
+                        </div>
+                        <div
+                          className="flex shrink-0 items-center gap-1.5"
+                          role="group"
+                          aria-label={`انتخاب رنگ برای ${player.name}`}
+                        >
+                          {colors.map((seat) => {
+                            const theme = PLAYER_THEMES[seat];
+                            const selected = player.seat === seat;
+                            return (
+                              <button
+                                key={theme.id}
+                                type="button"
+                                className={`grid h-6 w-6 place-items-center rounded-full transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-slate-800 ${
+                                  selected
+                                    ? "ring-2 ring-slate-800 ring-offset-2 ring-offset-white dark:ring-white dark:ring-offset-slate-800"
+                                    : isHost
+                                      ? "hover:scale-110"
+                                      : "cursor-default"
+                                }`}
+                                style={{ backgroundColor: theme.hex }}
+                                aria-label={`${player.name}: ${theme.label}`}
+                                aria-pressed={selected}
+                                title={`${player.name} · ${theme.label}`}
+                                disabled={!isHost || selected}
+                                onClick={() =>
+                                  onAct({
+                                    type: "set-player-seat",
+                                    playerId: player.id,
+                                    seat,
+                                  })
+                                }
+                              >
+                                {selected ? <Check size={13} className="text-white drop-shadow" /> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
         </div>
       </section>
       {isHost || !online ? (
