@@ -18,6 +18,7 @@ export type WireMessage =
 export interface RoomConnection {
   selfId: string;
   send: (message: WireMessage, target?: string) => void;
+  publishLobbySettings: (state: GameState) => void;
   ensurePeer: (peerId: string) => void;
   leave: () => Promise<void>;
   peerIds: () => string[];
@@ -103,12 +104,14 @@ export async function connectRoom(
     peers.delete(peerId);
     handlers.onPeerLeave(peerId, Boolean(explicit));
   });
-  connection.on("Receive", (message: unknown, from: string) => {
+  const receive = (message: unknown, from: string) => {
     if (gone || !isWire(message) || (from === selfId && message.kind !== "state")) return;
     notePeer(from);
     handlers.onStatus("live");
     handlers.onMessage(message, from);
-  });
+  };
+  connection.on("Receive", receive);
+  connection.on("LobbySettingsChanged", receive);
 
   const enterRoom = async () => {
     const others = await connection.invoke<string[]>("Join", roomId, selfId, role);
@@ -185,6 +188,19 @@ export async function connectRoom(
         .catch(() => {
           if (!gone)
             handlers.onStatus("connecting", "ارتباط لحظه‌ای قطع شد. دوباره وصل می‌شویم…");
+        });
+    },
+    publishLobbySettings: (state) => {
+      if (gone || connection.state !== HubConnectionState.Connected) return;
+      void joining
+        .then(() => {
+          if (gone || connection.state !== HubConnectionState.Connected) return;
+          return connection.invoke("PublishLobbySettings", { kind: "state", state });
+        })
+        .catch((error: unknown) => {
+          console.error("Failed to publish lobby settings over SignalR.", error);
+          if (!gone)
+            handlers.onStatus("error", "همگام‌سازی تنظیمات لابی انجام نشد.");
         });
     },
     ensurePeer: () => {},

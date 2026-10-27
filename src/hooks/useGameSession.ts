@@ -252,7 +252,11 @@ export function useGameSession(): SessionController {
       const next = applyIntent(prev, intent, actorId, Date.now());
       if (!next) return;
       commit(next);
-      publish(next);
+      if (intent.type === "set-roll-timer" || intent.type === "set-player-seat") {
+        connRef.current?.publishLobbySettings(next);
+      } else {
+        publish(next);
+      }
     },
     [commit, publish],
   );
