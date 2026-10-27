@@ -83,6 +83,24 @@ function ClassicBoard({
       {layout.track.map((cell) => (
         <TrackStone key={`t-${cell.index}`} layout={layout} cell={cell} occupied={occupied} />
       ))}
+      {layout.homes.map((lane, seat) => {
+        const theme = themeFor(seat);
+        const first = lane[0];
+        const last = lane[lane.length - 1];
+        if (!first || !last) return null;
+        return (
+          <line
+            key={`home-lane-${seat}`}
+            x1={first.x}
+            y1={first.y}
+            x2={last.x}
+            y2={last.y}
+            stroke={occupied.has(seat) ? theme.soft : "#e6f0f6"}
+            strokeWidth={layout.cellSize * 0.28}
+            strokeLinecap="round"
+          />
+        );
+      })}
       {layout.homes.flat().map((cell) => (
         <FlatDisc
           key={`h-${cell.seat}-${cell.homeIndex}`}

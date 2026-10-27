@@ -1,12 +1,35 @@
+import { useMemo } from "react";
 import { GameScreen } from "@/components/GameScreen";
 import { Lobby } from "@/components/Lobby";
 import { useGameSession } from "@/hooks/useGameSession";
+import { createLocalMatch } from "@/utils/gameRules";
+import type { GameState } from "@/types/game";
 
 export default function App() {
-  const room = (new URLSearchParams(window.location.search).get("room") ?? "").toUpperCase();
+  const params = new URLSearchParams(window.location.search);
+  const room = (params.get("room") ?? "").toUpperCase();
+  const resultPreview = import.meta.env.DEV && params.get("previewResult") === "1";
+  const previewState = useMemo<GameState | null>(() => {
+    if (!resultPreview) return null;
+    const sample = createLocalMatch(
+      4,
+      [
+        { name: "آرمان", kind: "human", seat: 0 },
+        { name: "سارا", kind: "bot", seat: 1 },
+        { name: "کیان", kind: "bot", seat: 2 },
+        { name: "نیما", kind: "bot", seat: 3 },
+      ],
+      "آرمان",
+    );
+    return {
+      ...sample,
+      status: "finished",
+      rankings: [sample.players[1].id, sample.players[0].id, sample.players[2].id, sample.players[3].id],
+    };
+  }, [resultPreview]);
   const session = useGameSession();
 
-  if (!session.state) {
+  if (!session.state && !previewState) {
     if (session.waiting) {
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
@@ -35,7 +58,7 @@ export default function App() {
   return (
     <>
       <GameScreen
-        state={session.state}
+        state={previewState ?? session.state!}
         online={session.online}
         isHost={session.isHost}
         myId={session.myId}
@@ -45,7 +68,9 @@ export default function App() {
         diceRolling={session.diceRolling}
         inputLocked={session.inputLocked}
         offlinePeerIds={session.offlinePeerIds}
+        reconnecting={session.reconnecting}
         onAct={session.act}
+        onReconnect={() => void session.reconnect()}
         onLeave={session.leave}
         onToggleSound={session.toggleSound}
       />

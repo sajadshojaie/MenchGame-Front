@@ -1,9 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Bot, Copy, Check, LogOut, RotateCcw, UserPlus, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  BookOpen,
+  Bot,
+  Copy,
+  Check,
+  LogOut,
+  Menu,
+  RotateCcw,
+  Trophy,
+  UserPlus,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import type { GameState, Intent } from "@/types/game";
-import { buildLayout } from "@/utils/boardGeometry";
+import { buildLayout, seatChoices } from "@/utils/boardGeometry";
 import { activePlayer, legalMoves, playerFinished, tokenParked } from "@/utils/gameRules";
-import { faDigits, themeFor } from "@/utils/palette";
+import { faDigits, PLAYER_THEMES, themeFor } from "@/utils/palette";
 import { Dice } from "@/components/Dice";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LudoBoard } from "@/components/LudoBoard";
@@ -19,7 +32,9 @@ interface GameScreenProps {
   diceRolling: boolean;
   inputLocked: boolean;
   offlinePeerIds: string[];
+  reconnecting: boolean;
   onAct: (intent: Intent) => void;
+  onReconnect: () => void;
   onLeave: () => void;
   onToggleSound: () => void;
 }
@@ -29,18 +44,28 @@ export function GameScreen(props: GameScreenProps) {
   const layout = useMemo(() => buildLayout(state.maxPlayers), [state.maxPlayers]);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const [dismissedResultRevision, setDismissedResultRevision] = useState<number | null>(
+    null,
+  );
   const [copied, setCopied] = useState(false);
   const current = activePlayer(state);
   const roller = state.players[state.rollerIndex] ?? current;
-  const displayed = props.diceRolling && state.phase === "roll" && roller ? roller : current;
+  const displayed =
+    props.diceRolling && state.phase === "roll" && roller ? roller : current;
   const moves = useMemo(() => legalMoves(state), [state]);
   const controllable =
     state.status === "playing" &&
     displayed &&
     !playerFinished(state, displayed.id) &&
     (props.online ? displayed.id === props.myId : displayed.kind === "human");
-  const canRoll = Boolean(controllable && state.phase === "roll" && !props.inputLocked && !props.diceRolling);
-  const canMove = Boolean(controllable && state.phase === "move" && !props.inputLocked && !props.diceRolling);
+  const canRoll = Boolean(
+    controllable && state.phase === "roll" && !props.inputLocked && !props.diceRolling,
+  );
+  const canMove = Boolean(
+    controllable && state.phase === "move" && !props.inputLocked && !props.diceRolling,
+  );
   const place = (id: string) => {
     const index = state.rankings.indexOf(id);
     return index === -1 ? null : index + 1;
@@ -59,6 +84,8 @@ export function GameScreen(props: GameScreenProps) {
   }
 
   const playing = state.status !== "lobby";
+  const showResults =
+    state.status === "finished" && dismissedResultRevision !== state.revision;
 
   useEffect(() => {
     if (state.status !== "playing") return;
@@ -70,14 +97,38 @@ export function GameScreen(props: GameScreenProps) {
     return () => window.removeEventListener("beforeunload", warn);
   }, [state.status]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (
+        !(event.target instanceof Node) ||
+        !mobileMenuRef.current?.contains(event.target)
+      ) {
+        setMobileMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobileMenuOpen]);
+
   return (
-    <div className="flex h-dvh min-w-0 flex-col overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_minmax(0,1fr)]">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#14324f]/10 px-3 py-2 lg:col-span-2 lg:px-4 lg:py-3">
-        <div className="min-w-0">
-          <p className="font-display text-xl leading-none text-[#14324f] lg:text-2xl">منچ بازی</p>
+    <div className="flex h-dvh min-w-0 flex-col overflow-hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(190px,30%)] sm:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_380px]">
+      <header className="game-header relative z-30 flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[#14324f]/10 px-2 py-2 sm:col-span-2 sm:gap-3 sm:px-3 lg:px-4 lg:py-3">
+        <div className="min-w-0 flex-1">
+          <p className="font-display text-lg leading-none text-[#14324f] sm:text-xl lg:text-2xl">
+            منچ بازی
+          </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[#5a7e99]">
             <span className="truncate">
-              {faDigits(state.maxPlayers)} نفره · {props.online ? `اتاق ${state.roomId}` : "روی همین دستگاه"}
+              {faDigits(state.maxPlayers)} نفره ·{" "}
+              {props.online ? `اتاق ${state.roomId}` : "روی همین دستگاه"}
             </span>
             {props.online ? (
               <span
@@ -90,95 +141,223 @@ export function GameScreen(props: GameScreenProps) {
             ) : null}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {props.online && state.roomId ? (
-            <button type="button" className="icon-btn" onClick={() => void copyLink()} aria-label="کپی لینک اتاق">
-              {copied ? <Check size={16} /> : <Copy size={16} />}
+            <button
+              type="button"
+              className="icon-btn !h-8 !w-8 sm:!h-9 sm:!w-auto sm:!px-3"
+              onClick={props.onReconnect}
+              disabled={props.reconnecting}
+              aria-label="سینک مجدد"
+              title="سینک مجدد"
+            >
+              <RotateCcw size={14} className={props.reconnecting ? "animate-spin" : ""} />
+              <span className="hidden text-xs font-semibold sm:inline">سینک مجدد</span>
             </button>
           ) : null}
-          <ThemeToggle />
-          <button type="button" className="icon-btn" onClick={props.onToggleSound} aria-label={props.soundOn ? "بی‌صدا" : "صدادار"}>
-            {props.soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
-          </button>
-          <button type="button" className="icon-btn" onClick={() => setRulesOpen(true)} aria-label="قوانین">
-            <BookOpen size={16} />
-          </button>
-          <button type="button" className="icon-btn" onClick={() => setLeaveOpen(true)} aria-label="خروج">
-            <LogOut size={16} />
-          </button>
+          <div className="hidden items-center gap-1 lg:flex lg:gap-2">
+            {props.online && state.roomId ? (
+              <button
+                type="button"
+                className="icon-btn game-header-icon"
+                onClick={() => void copyLink()}
+                aria-label="کپی لینک اتاق"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+              </button>
+            ) : null}
+            <ThemeToggle />
+            <button
+              type="button"
+              className="icon-btn game-header-icon"
+              onClick={props.onToggleSound}
+              aria-label={props.soundOn ? "بی‌صدا" : "صدادار"}
+            >
+              {props.soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            </button>
+            <button
+              type="button"
+              className="icon-btn game-header-icon"
+              onClick={() => setRulesOpen(true)}
+              aria-label="قوانین"
+            >
+              <BookOpen size={16} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn game-header-icon"
+              onClick={() => setLeaveOpen(true)}
+              aria-label="خروج"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+          <div className="relative lg:hidden" ref={mobileMenuRef}>
+            <button
+              type="button"
+              className="icon-btn game-header-icon"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-label={mobileMenuOpen ? "بستن منو" : "باز کردن منو"}
+              aria-expanded={mobileMenuOpen}
+              aria-haspopup="menu"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+            {mobileMenuOpen ? (
+              <div
+                role="menu"
+                aria-label="تنظیمات بازی"
+                className="absolute left-0 top-[calc(100%+0.5rem)] z-50 grid min-w-52 gap-1 rounded-2xl border border-slate-200 bg-white p-2 text-[#16324d] shadow-xl dark:border-white/10 dark:bg-slate-900 dark:text-slate-100"
+              >
+                {props.online && state.roomId ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="flex min-h-11 w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-right text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10"
+                    onClick={() => {
+                      void copyLink();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    {copied ? <Check size={17} /> : <Copy size={17} />}
+                    کپی لینک اتاق
+                  </button>
+                ) : null}
+                <ThemeToggle menuItem onToggle={() => setMobileMenuOpen(false)} />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex min-h-11 w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-right text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10"
+                  onClick={() => {
+                    props.onToggleSound();
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {props.soundOn ? <Volume2 size={17} /> : <VolumeX size={17} />}
+                  {props.soundOn ? "بی‌صدا" : "صدادار"}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex min-h-11 w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-right text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10"
+                  onClick={() => {
+                    setRulesOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <BookOpen size={17} />
+                  قوانین
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex min-h-11 w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-right text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                  onClick={() => {
+                    setLeaveOpen(true);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <LogOut size={17} />
+                  خروج از بازی
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center lg:contents">
-      <div className={`${playing ? "flex" : "hidden lg:flex"} min-h-0 min-w-0 w-full flex-col px-2 py-1 lg:flex-1 lg:px-6 lg:py-3`}>
-        <div className="board-slot min-h-0 w-full lg:flex-1">
-          <div className="board-fit">
-            <LudoBoard
-              layout={layout}
-              tokens={state.tokens}
-              players={state.players}
-              currentSeat={displayed?.seat ?? null}
-              legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
-              lastMove={state.lastMove}
-              onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
-            />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center sm:contents">
+        <div
+          className={`${playing ? "flex" : "hidden lg:flex"} min-h-0 min-w-0 flex-1 flex-col px-2 py-1 sm:justify-center sm:px-3 sm:py-2 lg:px-6 lg:py-3`}
+        >
+          <div className="board-slot min-h-0 w-full flex-1">
+            <div className="board-fit">
+              <LudoBoard
+                layout={layout}
+                tokens={state.tokens}
+                players={state.players}
+                currentSeat={displayed?.seat ?? null}
+                legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
+                lastMove={state.lastMove}
+                onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      <aside
-        className={`flex min-h-0 flex-col border-[#14324f]/10 bg-white/75 lg:border-r lg:border-t-0 lg:bg-white/60 lg:p-6 ${
-          playing
-            ? "shrink-0 overflow-x-hidden border-t px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:overflow-y-auto"
-            : "flex-1 overflow-y-auto border-t p-4 lg:flex-none"
-        }`}
-      >
-        {state.status === "lobby" ? (
-          <div className="m-auto w-full max-w-sm">
-            <LobbyPanel {...props} />
-          </div>
-        ) : (
-          <div className="flex w-full flex-col gap-2 lg:h-full lg:justify-between lg:gap-6">
-            <div className="flex items-center gap-2 lg:contents">
-              <div className="min-w-0 flex-1 lg:contents">
-                <TurnCard
-                  name={displayed?.name ?? "منچ بازی"}
-                  seat={displayed?.seat ?? 0}
-                  mine={Boolean(displayed && props.myId && displayed.id === props.myId)}
-                  deadline={state.status === "playing" && state.phase === "roll" && !props.diceRolling ? state.rollDeadline : 0}
-                />
-              </div>
-              <div className="dice-dock lg:order-2 lg:flex lg:flex-1 lg:items-center">
-                <Dice value={state.dice} rolling={props.diceRolling} enabled={canRoll} label="" onRoll={() => props.onAct({ type: "roll" })} />
-              </div>
+        <aside
+          className={`flex min-h-0 flex-col border-[#14324f]/10 bg-white/75 lg:border-r lg:border-t-0 lg:bg-white/60 lg:p-6 ${
+            playing
+              ? "shrink-0 overflow-x-hidden border-t px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:min-h-0 sm:overflow-y-auto sm:border-r sm:border-t-0 sm:px-2 sm:py-2 lg:px-3"
+              : "flex-1 overflow-y-auto border-t p-4 lg:flex-none"
+          }`}
+        >
+          {state.status === "lobby" ? (
+            <div className="m-auto w-full max-w-sm">
+              <LobbyPanel {...props} />
             </div>
-            {state.lastMove && tokenParked(state, state.lastMove.tokenId) ? (
-              <div className="lg:order-1">
-                <ArriveNote state={state} />
+          ) : (
+            <div className="flex w-full flex-col gap-2 lg:h-full lg:justify-between lg:gap-6">
+              <div className="flex items-center gap-2 sm:flex-col sm:items-stretch lg:contents">
+                <div className="min-w-0 flex-1 lg:contents">
+                  <TurnCard
+                    name={displayed?.name ?? "منچ بازی"}
+                    seat={displayed?.seat ?? 0}
+                    mine={Boolean(displayed && props.myId && displayed.id === props.myId)}
+                    deadline={
+                      state.status === "playing" &&
+                      state.phase === "roll" &&
+                      !props.diceRolling
+                        ? state.rollDeadline
+                        : 0
+                    }
+                  />
+                </div>
+                <div className="dice-dock sm:w-full lg:order-2 lg:flex lg:flex-1 lg:items-center">
+                  <Dice
+                    value={state.dice}
+                    rolling={props.diceRolling}
+                    enabled={canRoll}
+                    label=""
+                    onRoll={() => props.onAct({ type: "roll" })}
+                  />
+                </div>
               </div>
-            ) : null}
-            <div className="flex max-w-full gap-1.5 overflow-x-auto pb-1 lg:order-3 lg:w-full lg:flex-col lg:gap-2 lg:overflow-visible lg:pb-0">
-              {state.players.map((player) => (
-                <SeatCard
-                  key={player.id}
-                  name={player.name}
-                  seat={player.seat}
-                  active={displayed?.id === player.id}
-                  bot={player.kind === "bot"}
-                  place={place(player.id)}
-                  online={props.online}
-                  linked={player.connected && !props.offlinePeerIds.includes(player.peerId ?? "")}
-                />
-              ))}
-              {state.rankings.length > 0 && (props.isHost || !props.online) ? (
-                <button type="button" className="btn-primary mt-2 shrink-0" onClick={() => props.onAct({ type: "rematch" })}>
-                  <RotateCcw size={16} /> شروع مجدد
-                </button>
+              {state.lastMove && tokenParked(state, state.lastMove.tokenId) ? (
+                <div className="lg:order-1">
+                  <ArriveNote state={state} />
+                </div>
               ) : null}
+              <div className="flex w-full min-w-0 flex-col gap-1.5 py-1 lg:order-3 lg:gap-2 lg:pb-0">
+                {state.players.map((player) => (
+                  <SeatCard
+                    key={player.id}
+                    className="w-full"
+                    name={player.name}
+                    seat={player.seat}
+                    active={displayed?.id === player.id}
+                    bot={player.kind === "bot"}
+                    place={place(player.id)}
+                    online={props.online}
+                    linked={
+                      player.connected &&
+                      !props.offlinePeerIds.includes(player.peerId ?? "")
+                    }
+                  />
+                ))}
+                {state.rankings.length > 0 && (props.isHost || !props.online) ? (
+                  <button
+                    type="button"
+                    className="btn-primary mt-1 w-full"
+                    onClick={() => props.onAct({ type: "rematch" })}
+                  >
+                    <RotateCcw size={16} /> شروع مجدد
+                  </button>
+                ) : null}
+              </div>
             </div>
-          </div>
-        )}
-      </aside>
+          )}
+        </aside>
       </div>
 
       {rulesOpen ? <Rules onClose={() => setRulesOpen(false)} /> : null}
@@ -191,39 +370,224 @@ export function GameScreen(props: GameScreenProps) {
           }}
         />
       ) : null}
+      {showResults ? (
+        <GameResults
+          state={state}
+          onClose={() => setDismissedResultRevision(state.revision)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function orderedResults(state: GameState) {
+  const rankedPlayers = state.rankings
+    .map((id) => state.players.find((player) => player.id === id))
+    .filter((player): player is GameState["players"][number] => Boolean(player));
+  const rankedIds = new Set(rankedPlayers.map((player) => player.id));
+  return [
+    ...rankedPlayers,
+    ...state.players.filter((player) => !rankedIds.has(player.id)),
+  ];
+}
+
+function GameResults({ state, onClose }: { state: GameState; onClose: () => void }) {
+  const players = orderedResults(state);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#10263a]/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="game-results-title"
+    >
+      <section className="relative my-auto w-full max-w-md overflow-hidden rounded-[2rem] border border-white/80 bg-gradient-to-b from-[#fffdf5] to-[#f0f8ff] p-5 text-[#16324d] shadow-[0_28px_90px_rgba(7,28,47,0.36)] sm:p-7">
+        <button
+          type="button"
+          className="icon-btn absolute left-4 top-4"
+          onClick={onClose}
+          aria-label="بستن نتیجه"
+        >
+          <X size={18} />
+        </button>
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[#ffe59a] text-[#a66b00] shadow-inner">
+          <Trophy size={38} strokeWidth={2.2} />
+        </div>
+        <p className="mt-4 text-center text-sm font-bold text-[#9b741e]">پایان بازی</p>
+        <h2
+          id="game-results-title"
+          className="mt-1 text-center font-display text-3xl text-[#14324f]"
+        >
+          نتیجه بازی
+        </h2>
+        <p className="mt-1 text-center text-sm text-[#5a7e99]">
+          {players[0]?.name ?? "بازیکنان"} قهرمان این دور شد!
+        </p>
+
+        <ol className="mt-6 space-y-2.5">
+          {players.map((player, index) => {
+            const theme = themeFor(player.seat);
+            return (
+              <li
+                key={player.id}
+                className={`flex items-center gap-3 rounded-2xl border px-3 py-3 ${
+                  index === 0
+                    ? "border-[#f2d47c] bg-[#fff7d9] shadow-sm"
+                    : "border-[#dce9f1] bg-white/80"
+                }`}
+              >
+                <span
+                  className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-extrabold text-white shadow-sm"
+                  style={{ background: theme.hex }}
+                >
+                  {faDigits(index + 1)}
+                </span>
+                <span className="min-w-0 flex-1 truncate font-bold text-[#17344f]">
+                  {player.name}
+                </span>
+                <span
+                  className={`shrink-0 text-xs font-extrabold ${
+                    index === 0 ? "text-amber-700" : "text-[#66829a]"
+                  }`}
+                >
+                  {index === 0 ? "قهرمان 🏆" : `نفر ${faDigits(index + 1)}`}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
     </div>
   );
 }
 
 function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
   const empty = state.maxPlayers - state.players.length;
+  const colors = seatChoices(state.maxPlayers);
   return (
     <div>
-      <h2 className="font-display text-3xl text-[#14324f]">{state.roomId ?? "منچ بازی"}</h2>
+      <h2 className="font-display text-3xl text-[#14324f]">
+        {state.roomId ?? "منچ بازی"}
+      </h2>
       <ul className="mt-4 space-y-2">
         {state.players.map((player) => {
           const theme = themeFor(player.seat);
           return (
-            <li key={player.id} className="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-2">
+            <li
+              key={player.id}
+              className="flex items-center gap-3 rounded-2xl bg-white/80 px-3 py-2"
+            >
               <span className="h-8 w-8 rounded-full" style={{ background: theme.hex }} />
               <span className="flex-1">{player.name}</span>
-              {online && player.kind === "human" ? <LinkDot on={player.connected} /> : null}
-              <span className="text-xs text-[#5a7e99]">{player.kind === "bot" ? "ربات" : theme.label}</span>
+              {online && player.kind === "human" ? (
+                <LinkDot on={player.connected} />
+              ) : null}
+              <span className="text-xs text-[#5a7e99]">
+                {player.kind === "bot" ? "ربات" : theme.label}
+              </span>
             </li>
           );
         })}
         {Array.from({ length: empty }, (_, index) => (
-          <li key={`empty-${index}`} className="rounded-2xl border border-dashed border-[#14324f]/20 px-3 py-3 text-sm text-[#5a7e99]">
+          <li
+            key={`empty-${index}`}
+            className="rounded-2xl border border-dashed border-[#14324f]/20 px-3 py-3 text-sm text-[#5a7e99]"
+          >
             جای خالی
           </li>
         ))}
       </ul>
+      <section className="mt-4 rounded-2xl border border-[#14324f]/10 bg-white/70 p-3">
+        <h3 className="text-sm font-extrabold text-[#14324f]">تنظیمات بازی</h3>
+        <div className="mt-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-[#24506f]">
+              زمان برای پرتاب تاس
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={state.rollTimerEnabled}
+              aria-label="تایمر پرتاب تاس"
+              disabled={!isHost}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${
+                state.rollTimerEnabled ? "bg-emerald-500" : "bg-slate-400"
+              }`}
+              onClick={() =>
+                onAct({ type: "set-roll-timer", enabled: !state.rollTimerEnabled })
+              }
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  state.rollTimerEnabled ? "right-1" : "right-6"
+                }`}
+              />
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-[#5a7e99]">
+            {state.rollTimerEnabled ? "هر نوبت ۱۵ ثانیه" : "بدون محدودیت زمانی"}
+            {!isHost ? " · فقط میزبان می‌تواند تغییر دهد" : ""}
+          </p>
+        </div>
+        <div className="mt-4 space-y-3">
+          <p className="text-sm font-semibold text-[#24506f]">رنگ مهرهٔ بازیکن‌ها</p>
+          {state.players.map((player) => (
+            <div key={player.id} className="flex items-center justify-between gap-3">
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[#14324f]">
+                {player.name}
+              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {colors.map((seat) => {
+                  const theme = PLAYER_THEMES[seat];
+                  const selected = player.seat === seat;
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      className={`h-6 w-6 rounded-full transition-transform ${
+                        selected ? "ring-2 ring-[#14324f] ring-offset-2" : ""
+                      } ${isHost ? "hover:scale-110" : "cursor-default"}`}
+                      style={{ backgroundColor: theme.hex }}
+                      aria-label={`${player.name}: ${theme.label}`}
+                      aria-pressed={selected}
+                      title={`${player.name} · ${theme.label}`}
+                      disabled={!isHost || selected}
+                      onClick={() =>
+                        onAct({
+                          type: "set-player-seat",
+                          playerId: player.id,
+                          seat,
+                        })
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {!isHost ? (
+            <p className="text-xs text-[#5a7e99]">
+              فقط میزبان می‌تواند تنظیمات را تغییر دهد.
+            </p>
+          ) : null}
+        </div>
+      </section>
       {isHost || !online ? (
         <div className="mt-4 grid gap-2">
-          <button type="button" className="btn-ghost" disabled={empty === 0} onClick={() => onAct({ type: "add-bot" })}>
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={empty === 0}
+            onClick={() => onAct({ type: "add-bot" })}
+          >
             <UserPlus size={16} /> افزودن ربات
           </button>
-          <button type="button" className="btn-primary" disabled={state.players.length < 2 || state.players.length > state.maxPlayers} onClick={() => onAct({ type: "start" })}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={state.players.length < 2 || state.players.length > state.maxPlayers}
+            onClick={() => onAct({ type: "start" })}
+          >
             شروع بازی
           </button>
         </div>
@@ -244,7 +608,10 @@ function ArriveNote({ state }: { state: GameState }) {
     ? `${player?.name ?? "بازیکن"} هر چهار مهره را در خانه‌های رنگی نشاند.`
     : `${player?.name ?? "بازیکن"} یک مهره را در خانه رنگی نشاند.`;
   return (
-    <p className="rounded-2xl px-4 py-3 text-center text-sm font-bold text-[#14324f]" style={{ background: theme.soft }}>
+    <p
+      className="rounded-2xl px-4 py-3 text-center text-sm font-bold text-[#14324f]"
+      style={{ background: theme.soft }}
+    >
       {text}
     </p>
   );
@@ -252,10 +619,18 @@ function ArriveNote({ state }: { state: GameState }) {
 
 function ConfirmLeave({ onStay, onLeave }: { onStay: () => void; onLeave: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onStay}>
-      <div className="w-full max-w-sm rounded-3xl bg-white p-6 text-[#16324d]" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      onClick={onStay}
+    >
+      <div
+        className="w-full max-w-sm rounded-3xl bg-white p-6 text-[#16324d]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 className="font-display text-3xl text-[#14324f]">خروج از بازی؟</h2>
-        <p className="mt-3 text-sm leading-relaxed text-[#24506f]">اگر خارج شوید این دست را ترک می‌کنید.</p>
+        <p className="mt-3 text-sm leading-relaxed text-[#24506f]">
+          اگر خارج شوید این دست را ترک می‌کنید.
+        </p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button type="button" className="btn-ghost" onClick={onStay}>
             ماندن
@@ -269,17 +644,35 @@ function ConfirmLeave({ onStay, onLeave }: { onStay: () => void; onLeave: () => 
   );
 }
 
-function TurnCard({ name, seat, mine, deadline }: { name: string; seat: number; mine: boolean; deadline: number }) {
+function TurnCard({
+  name,
+  seat,
+  mine,
+  deadline,
+}: {
+  name: string;
+  seat: number;
+  mine: boolean;
+  deadline: number;
+}) {
   const theme = themeFor(seat);
   const label = mine ? "شما" : name;
   return (
-    <div className="flex w-full min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm lg:gap-4 lg:rounded-[1.8rem] lg:px-5 lg:py-5" style={{ borderRight: `8px solid ${theme.hex}` }}>
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl font-extrabold text-white shadow-inner lg:h-20 lg:w-20 lg:rounded-3xl lg:text-4xl" style={{ background: theme.hex }}>
+    <div
+      className="flex w-full min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm lg:gap-4 lg:rounded-[1.8rem] lg:px-5 lg:py-5"
+      style={{ borderRight: `8px solid ${theme.hex}` }}
+    >
+      <span
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl font-extrabold text-white shadow-inner lg:h-20 lg:w-20 lg:rounded-3xl lg:text-4xl"
+        style={{ background: theme.hex }}
+      >
         {label.trim().slice(0, 1)}
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-[#5a7e99] lg:text-sm">نوبت</p>
-        <p className="truncate text-xl font-extrabold leading-tight text-[#14324f] lg:text-4xl">{label}</p>
+        <p className="truncate text-xl font-extrabold leading-tight text-[#14324f] lg:text-4xl">
+          {label}
+        </p>
       </div>
       {deadline > 0 ? <RollClock deadline={deadline} /> : null}
     </div>
@@ -294,7 +687,9 @@ function RollClock({ deadline }: { deadline: number }) {
   }, [deadline]);
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
   return (
-    <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg font-extrabold lg:h-14 lg:w-14 lg:text-2xl ${left <= 5 ? "bg-rose-100 text-rose-700" : "bg-[#eef6fb] text-[#14324f]"}`}>
+    <span
+      className={`grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg font-extrabold lg:h-14 lg:w-14 lg:text-2xl ${left <= 5 ? "bg-rose-100 text-rose-700" : "bg-[#eef6fb] text-[#14324f]"}`}
+    >
       {faDigits(left)}
     </span>
   );
@@ -317,6 +712,7 @@ function LinkDot({ on }: { on: boolean }) {
 
 function SeatCard({
   name,
+  className,
   seat,
   active,
   bot,
@@ -325,6 +721,7 @@ function SeatCard({
   linked,
 }: {
   name: string;
+  className?: string;
   seat: number;
   active: boolean;
   bot: boolean;
@@ -335,34 +732,61 @@ function SeatCard({
   const theme = themeFor(seat);
   return (
     <div
-      className={`flex shrink-0 items-center gap-1.5 rounded-2xl px-2 py-1.5 lg:w-full lg:gap-2 lg:px-3 lg:py-3 ${active ? "bg-white shadow-sm" : "bg-white/70"}`}
+      className={`flex shrink-0 items-center gap-1.5 rounded-2xl px-2 py-1.5 lg:w-full lg:gap-2 lg:px-3 lg:py-3 ${active ? "bg-white shadow-sm" : "bg-white/70"} ${className ?? ""}`}
       style={active ? { outline: `2px solid ${theme.hex}` } : undefined}
     >
       <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: theme.hex }} />
-      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#14324f] lg:text-sm">{name}</span>
+      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#14324f] lg:text-sm">
+        {name}
+      </span>
       {online && !bot ? <LinkDot on={linked} /> : null}
       {bot && !place ? <Bot size={14} className="shrink-0 text-[#7f9aaf]" /> : null}
-      {place ? <span className={`shrink-0 text-xs font-bold ${place === 1 ? "text-amber-600" : "text-[#5a7e99]"}`}>{placeLabel(place)}</span> : null}
+      {place ? (
+        <span
+          className={`shrink-0 text-xs font-bold ${place === 1 ? "text-amber-600" : "text-[#5a7e99]"}`}
+        >
+          {placeLabel(place)}
+        </span>
+      ) : null}
     </div>
   );
 }
 
 function Rules({ onClose }: { onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={onClose}>
-      <div className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 text-[#16324d]" onClick={(event) => event.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 text-[#16324d]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h2 className="font-display text-3xl text-[#14324f]">قانون منچ بازی</h2>
         <ul className="mt-4 space-y-2 text-sm leading-relaxed text-[#24506f]">
           <li>هر رنگ چهار مهره دارد و از خانه شروع می‌کند.</li>
-          <li>با آوردن ۶ یک مهره روی خانه شروع همان رنگ می‌آید و دوباره تاس می‌اندازی.</li>
+          <li>
+            با آوردن ۶ یک مهره روی خانه شروع همان رنگ می‌آید و دوباره تاس می‌اندازی.
+          </li>
           <li>سه بار ۶ پشت سر هم نوبت را می‌سوزاند. شش سوم بازی نمی‌شود.</li>
-          <li>اگر روی خانهٔ حریف بنشینی، همهٔ مهره‌های او در آن خانه به چهارخانهٔ اول برمی‌گردند.</li>
-          <li>از مهره‌های سر راه می‌توانی رد شوی. فقط نشستن روی همان خانه آن‌ها را می‌زند.</li>
+          <li>
+            اگر روی خانهٔ حریف بنشینی، همهٔ مهره‌های او در آن خانه به چهارخانهٔ اول
+            برمی‌گردند.
+          </li>
+          <li>
+            از مهره‌های سر راه می‌توانی رد شوی. فقط نشستن روی همان خانه آن‌ها را می‌زند.
+          </li>
           <li>زدن مهره هم یک تاس اضافه می‌دهد.</li>
-          <li>در مسیر رنگی، مهره اول در خانه پنجم می‌ایستد، بعدی در چهارم، و همین‌طور عقب‌تر. از مهره جلویی نمی‌شود رد شد و عدد اضافه هم مجاز نیست.</li>
+          <li>
+            در مسیر رنگی، مهره اول در خانه پنجم می‌ایستد، بعدی در چهارم، و همین‌طور
+            عقب‌تر. از مهره جلویی نمی‌شود رد شد و عدد اضافه هم مجاز نیست.
+          </li>
           <li>اگر با آن تاس حرکتی ممکن نباشد، نوبت رد می‌شود.</li>
           <li>برای انداختن تاس ۱۵ ثانیه وقت هست. اگر نیندازی نوبت نفر بعدی می‌شود.</li>
-          <li>هر کس زودتر هر چهار مهره را در خانه‌های رنگی بنشاند برنده است. بقیه ادامه می‌دهند و نفر دوم و سوم مشخص می‌شود.</li>
+          <li>
+            هر کس زودتر هر چهار مهره را در خانه‌های رنگی بنشاند برنده است. بقیه ادامه
+            می‌دهند و نفر دوم و سوم مشخص می‌شود.
+          </li>
         </ul>
         <button type="button" className="btn-primary mt-5" onClick={onClose}>
           برگشت به میز

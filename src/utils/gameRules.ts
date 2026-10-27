@@ -69,6 +69,7 @@ export function createLocalMatch(count: PlayerCount, seats: SeatSetup[], hostNam
     maxPlayers: count,
     players,
     status: "playing",
+    rollTimerEnabled: true,
     phase: "roll",
   });
   return { ...state, rollDeadline: rollClock(players, 0, Date.now(), 0, true) };
@@ -97,6 +98,7 @@ export function createLobby(options: {
     maxPlayers: options.count,
     players: [host],
     status: "lobby",
+    rollTimerEnabled: true,
     phase: "lobby",
   });
 }
@@ -107,6 +109,7 @@ function baseState(partial: {
   maxPlayers: PlayerCount;
   players: Player[];
   status: GameState["status"];
+  rollTimerEnabled: boolean;
   phase: GameState["phase"];
 }): GameState {
   return {
@@ -115,6 +118,7 @@ function baseState(partial: {
     hostId: partial.hostId,
     maxPlayers: partial.maxPlayers,
     status: partial.status,
+    rollTimerEnabled: partial.rollTimerEnabled,
     players: partial.players,
     tokens: createTokens(partial.players),
     currentPlayerIndex: 0,
@@ -232,7 +236,10 @@ export function legalMoves(state: GameState, dice = state.dice): LegalMove[] {
     let limit = goal;
     for (const other of state.tokens) {
       if (other.id === token.id || other.playerId !== token.playerId || other.progress < 0) continue;
-      if (other.progress > token.progress && other.progress <= goal) limit = Math.min(limit, other.progress - 1);
+      if (other.progress <= token.progress || other.progress > goal) continue;
+      const bothInHomeLane = token.progress >= len && other.progress >= len;
+      if (bothInHomeLane && dest !== other.progress) continue;
+      limit = Math.min(limit, other.progress - 1);
     }
     if (dest > limit) continue;
 
@@ -259,9 +266,16 @@ function nextPlayerIndex(state: GameState, from: number, tokens: Token[], rankin
   return from;
 }
 
-function rollClock(players: Player[], index: number, now: number, busyUntil: number, playing: boolean): number {
+function rollClock(
+  players: Player[],
+  index: number,
+  now: number,
+  busyUntil: number,
+  playing: boolean,
+  enabled = true,
+): number {
   const player = players[index];
-  if (!playing || !player || player.kind !== "human") return 0;
+  if (!enabled || !playing || !player || player.kind !== "human") return 0;
   return Math.max(now, busyUntil) + TURN_LIMIT_MS;
 }
 
@@ -293,7 +307,7 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
       consecutiveSixes: 0,
       currentPlayerIndex: next,
       busyUntil: now + DICE_MS + 420,
-      rollDeadline: rollClock(state.players, next, now, now + DICE_MS + 420, true),
+      rollDeadline: rollClock(state.players, next, now, now + DICE_MS + 420, true, state.rollTimerEnabled),
     };
   }
 
@@ -306,7 +320,7 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
       consecutiveSixes: 0,
       currentPlayerIndex: next,
       busyUntil: now + DICE_MS + 520,
-      rollDeadline: rollClock(state.players, next, now, now + DICE_MS + 520, true),
+      rollDeadline: rollClock(state.players, next, now, now + DICE_MS + 520, true, state.rollTimerEnabled),
     };
   }
 
@@ -331,7 +345,7 @@ export function passRoll(state: GameState, now: number): GameState {
     consecutiveSixes: 0,
     currentPlayerIndex: next,
     busyUntil,
-    rollDeadline: rollClock(state.players, next, now, busyUntil, true),
+    rollDeadline: rollClock(state.players, next, now, busyUntil, true, state.rollTimerEnabled),
   };
 }
 
@@ -398,6 +412,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
             now,
             now + hopDuration(move.from, move.to) + (move.captures.length ? HOP_MS : 0),
             true,
+            state.rollTimerEnabled,
           ),
     moveSeq: state.moveSeq + 1,
     lastMove,
@@ -479,7 +494,7 @@ export function startMatch(state: GameState, now: number): GameState {
     openingMisses: {},
     rankings: [],
     busyUntil: now + 400,
-    rollDeadline: rollClock(players, 0, now, now + 400, true),
+    rollDeadline: rollClock(players, 0, now, now + 400, true, state.rollTimerEnabled),
     moveSeq: 0,
     lastMove: null,
   };
@@ -503,7 +518,7 @@ export function rematch(state: GameState, now: number): GameState {
     openingMisses: {},
     rankings: [],
     busyUntil: now + 400,
-    rollDeadline: rollClock(players, 0, now, now + 400, true),
+    rollDeadline: rollClock(players, 0, now, now + 400, true, state.rollTimerEnabled),
     moveSeq: state.moveSeq + 1,
     lastMove: null,
   };
@@ -537,7 +552,9 @@ export function reattachHuman(state: GameState, playerId: string, peerId: string
     ...state,
     revision: state.revision + 1,
     players,
-    rollDeadline: arm ? rollClock(players, state.currentPlayerIndex, Date.now(), Date.now(), true) : state.rollDeadline,
+    rollDeadline: arm
+      ? rollClock(players, state.currentPlayerIndex, Date.now(), Date.now(), true, state.rollTimerEnabled)
+      : state.rollDeadline,
   };
 }
 
@@ -556,6 +573,37 @@ export function convertPeerToBot(state: GameState, peerId: string): GameState {
 }
 
 export function applyIntent(state: GameState, intent: Intent, actorId: string, now: number): GameState | null {
+  if (intent.type === "set-roll-timer") {
+    if (actorId !== state.hostId || state.status !== "lobby") return null;
+    if (state.rollTimerEnabled === intent.enabled) return null;
+    return {
+      ...state,
+      revision: state.revision + 1,
+      rollTimerEnabled: intent.enabled,
+    };
+  }
+  if (intent.type === "set-player-seat") {
+    if (actorId !== state.hostId || state.status !== "lobby") return null;
+    if (!seatChoices(state.maxPlayers).includes(intent.seat)) return null;
+    const player = state.players.find((item) => item.id === intent.playerId);
+    if (!player || player.seat === intent.seat) return null;
+    const other = state.players.find((item) => item.seat === intent.seat);
+    const players = state.players.map((item) => {
+      if (item.id === intent.playerId) return { ...item, seat: intent.seat };
+      if (other && item.id === other.id) return { ...item, seat: player.seat };
+      return item;
+    });
+    const seatByPlayer = new Map(players.map((item) => [item.id, item.seat]));
+    return {
+      ...state,
+      revision: state.revision + 1,
+      players,
+      tokens: state.tokens.map((token) => ({
+        ...token,
+        seat: seatByPlayer.get(token.playerId) ?? token.seat,
+      })),
+    };
+  }
   if (intent.type === "add-bot") {
     if (actorId !== state.hostId) return null;
     const next = addBot(state);

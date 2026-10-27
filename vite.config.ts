@@ -4,13 +4,16 @@ import { defineConfig } from "vite";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  server: {
+    port: 3000,
+  },
+  preview: {
+    port: 3000,
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
-  },
-  server: {
-    allowedHosts: ["localhost", "127.0.0.1"],
   },
 });

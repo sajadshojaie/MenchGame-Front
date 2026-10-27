@@ -77,10 +77,12 @@ export interface SessionController {
   diceRolling: boolean;
   inputLocked: boolean;
   offlinePeerIds: string[];
+  reconnecting: boolean;
   startLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
   createOnline: (count: PlayerCount, name: string, seat: number) => Promise<void>;
   joinOnline: (code: string, name: string, seat: number) => Promise<void>;
   act: (intent: Intent) => void;
+  reconnect: () => Promise<void>;
   leave: () => void;
   toggleSound: () => void;
   dismissError: () => void;
@@ -99,9 +101,11 @@ export function useGameSession(): SessionController {
   const [diceRolling, setDiceRolling] = useState(false);
   const [inputLocked, setInputLocked] = useState(false);
   const [offlinePeerIds, setOfflinePeerIds] = useState<string[]>([]);
+  const [reconnecting, setReconnecting] = useState(false);
 
   const stateRef = useRef<GameState | null>(null);
   const connRef = useRef<RoomConnection | null>(null);
+  const reconnectingRef = useRef(false);
   const hostRef = useRef(false);
   const myIdRef = useRef<string | null>(null);
   const audioRef = useRef<Soundboard | null>(null);
@@ -454,7 +458,9 @@ export function useGameSession(): SessionController {
 
   const openRoom = useCallback(
     async (code: string, role: RoomRole, options?: ConnectOptions) => {
-      connRef.current?.leave();
+      const previous = connRef.current;
+      connRef.current = null;
+      if (previous) await previous.leave();
       readyRef.current = false;
       const early: Array<{ message: WireMessage; peerId: string }> = [];
       const earlyPeers: string[] = [];
@@ -516,8 +522,13 @@ export function useGameSession(): SessionController {
   );
 
   const leave = useCallback(() => {
-    connRef.current?.leave();
+    const connection = connRef.current;
     connRef.current = null;
+    if (connection) {
+      void connection.leave().catch((err) => {
+        console.error("Failed to close the room connection.", err);
+      });
+    }
     hostRef.current = false;
     myIdRef.current = null;
     joinHelloRef.current = null;
@@ -594,8 +605,13 @@ export function useGameSession(): SessionController {
           return;
         } catch (err) {
           lastError = err;
-          connRef.current?.leave();
+          const connection = connRef.current;
           connRef.current = null;
+          if (connection) {
+            void connection.leave().catch((closeError) => {
+              console.error("Failed to close the room connection.", closeError);
+            });
+          }
           if (!(err instanceof RoomBusyError)) break;
         }
       }
@@ -728,6 +744,42 @@ export function useGameSession(): SessionController {
     [openRoom],
   );
 
+  const reconnect = useCallback(async () => {
+    const current = stateRef.current;
+    const previous = connRef.current;
+    const saved = readSeat();
+    const selfId =
+      previous?.selfId ??
+      (saved && saved.roomId === current?.roomId ? saved.relayId : undefined);
+    if (
+      reconnectingRef.current ||
+      !online ||
+      !current?.roomId ||
+      !selfId
+    )
+      return;
+
+    reconnectingRef.current = true;
+    setReconnecting(true);
+    setError(null);
+    try {
+      const { flush } = await openRoom(current.roomId, hostRef.current ? "host" : "guest", {
+        selfId,
+        resume: true,
+      });
+      flush();
+    } catch (err) {
+      const detail =
+        err instanceof Error ? err.message : "اتصال مجدد به اتاق ممکن نشد.";
+      setSyncStatus("error");
+      setSyncDetail(detail);
+      setError(detail);
+    } finally {
+      reconnectingRef.current = false;
+      setReconnecting(false);
+    }
+  }, [online, openRoom]);
+
   useEffect(() => {
     if (resumedRef.current) return;
     const saved = readSeat();
@@ -754,10 +806,12 @@ export function useGameSession(): SessionController {
     diceRolling,
     inputLocked,
     offlinePeerIds,
+    reconnecting,
     startLocal,
     createOnline,
     joinOnline,
     act,
+    reconnect,
     leave,
     toggleSound,
     dismissError: () => setError(null),

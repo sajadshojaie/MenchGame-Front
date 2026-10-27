@@ -22,7 +22,13 @@ export function ThemeBoot() {
   return null;
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({
+  menuItem = false,
+  onToggle,
+}: {
+  menuItem?: boolean;
+  onToggle?: () => void;
+}) {
   const [dark, setDark] = useState(false);
 
   useLayoutEffect(() => {
@@ -36,11 +42,23 @@ export function ThemeToggle() {
     applyTheme(next);
     window.localStorage.setItem(THEME_KEY, next ? "dark" : "light");
     setDark(next);
+    onToggle?.();
   }
 
   return (
-    <button type="button" className="icon-btn" onClick={toggle} aria-label={dark ? "حالت روشن" : "حالت تاریک"}>
+    <button
+      type="button"
+      className={
+        menuItem
+          ? "flex min-h-11 w-full items-center justify-start gap-3 rounded-xl px-3 py-2 text-right text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-white/10"
+          : "icon-btn"
+      }
+      onClick={toggle}
+      aria-label={dark ? "حالت روشن" : "حالت تاریک"}
+      role={menuItem ? "menuitem" : undefined}
+    >
       {dark ? <Sun size={16} /> : <Moon size={16} />}
+      {menuItem ? (dark ? "حالت روشن" : "حالت تاریک") : null}
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildLayout, homeLength, minCenterDistance, seatOrder, seatPlan, trackLength } from "../src/utils/boardGeometry.ts";
+import { buildLayout, finishProgress, homeLength, minCenterDistance, seatOrder, seatPlan, trackLength } from "../src/utils/boardGeometry.ts";
 import {
   addBot,
   addHuman,
@@ -42,8 +42,12 @@ for (let i = 0; i < classicCells.length; i++) {
 
 assert.equal(trackLength(2), 56);
 assert.equal(trackLength(3), 56);
-assert.equal(homeLength(2), 5);
+assert.equal(homeLength(2), 4);
+assert.equal(homeLength(3), 4);
 assert.equal(homeLength(5), 4);
+assert.equal(buildLayout(2).homeLength, 4);
+assert.equal(buildLayout(3).homeLength, 4);
+assert.equal(finishProgress(4), trackLength(4) + 3);
 assert.deepEqual(seatPlan(2), [0, 2]);
 assert.deepEqual(seatPlan(3), [0, 1, 2]);
 assert.deepEqual(seatOrder(2, 3), [3, 1]);
@@ -70,6 +74,17 @@ for (const count of [4, 5, 6] as PlayerCount[]) {
   }
   for (const seat of layout.starts) {
     assert.ok(layout.track[seat].startFor != null);
+  }
+}
+
+const classicLayout = buildLayout(4);
+for (const seat of classicLayout.homes) {
+  assert.equal(seat.length, 4);
+  for (let index = 1; index < seat.length; index++) {
+    const previous = seat[index - 1];
+    const current = seat[index];
+    const distance = Math.hypot(current.x - previous.x, current.y - previous.y);
+    assert.ok(distance < classicLayout.cellSize * 1.4, "classic home lane has no visible gap");
   }
 }
 
@@ -255,9 +270,9 @@ function fresh(count: PlayerCount = 4) {
     tokens: state.tokens.map((token) => (token.id === first.id ? { ...token, progress: len - 1 } : token)),
   };
   assert.equal(legalMoves(state).some((move) => move.tokenId === first.id), false);
-  state = { ...state, dice: 5 };
+  state = { ...state, dice: 4 };
   const exact = legalMoves(state).find((move) => move.tokenId === first.id);
-  assert.equal(exact?.to, len + 4);
+  assert.equal(exact?.to, len + 3);
   assert.equal(exact?.finishes, true);
   state = applyMove(state, first.id, 0);
   assert.equal(tokenParked(state, first.id), true);
@@ -270,13 +285,41 @@ function fresh(count: PlayerCount = 4) {
     tokens: state.tokens.map((token) => (token.id === second.id ? { ...token, progress: len - 1 } : token)),
   };
   assert.equal(legalMoves(state).some((move) => move.tokenId === second.id), false);
-  state = { ...state, dice: 4 };
+  state = { ...state, dice: 3 };
   const behind = legalMoves(state).find((move) => move.tokenId === second.id);
-  assert.equal(behind?.to, len + 3);
+  assert.equal(behind?.to, len + 2);
   assert.equal(behind?.finishes, true);
   state = applyMove(state, second.id, 0);
   assert.equal(tokenParked(state, second.id), true);
-  assert.equal(state.tokens.find((item) => item.id === first.id)?.progress, len + 4);
+  assert.equal(state.tokens.find((item) => item.id === first.id)?.progress, len + 3);
+}
+
+{
+  let state = fresh(4);
+  const len = trackLength(4);
+  const red = state.players[0];
+  const [last, middle, rear] = state.tokens.filter((token) => token.playerId === red.id);
+  state = {
+    ...state,
+    phase: "move",
+    dice: 3,
+    tokens: state.tokens.map((token) => {
+      if (token.id === last.id) return { ...token, progress: len + 3 };
+      if (token.id === middle.id) return { ...token, progress: len + 1 };
+      if (token.id === rear.id) return { ...token, progress: len };
+      return token;
+    }),
+  };
+  state = { ...state, dice: 2 };
+  const passMove = legalMoves(state).find((move) => move.tokenId === rear.id);
+  assert.equal(passMove?.to, len + 2);
+
+  state = { ...state, dice: 1 };
+  assert.equal(
+    legalMoves(state).some((move) => move.tokenId === rear.id),
+    false,
+    "a token may pass a teammate in the home lane but cannot land on it",
+  );
 }
 
 {
@@ -347,6 +390,76 @@ function fresh(count: PlayerCount = 4) {
     3,
   );
   assert.equal(claimed?.players[1]?.seat, 3);
+}
+
+{
+  const lobby = addHuman(
+    createLobby({
+      roomId: "SETUP",
+      hostId: "host",
+      hostName: "Host",
+      count: 4,
+      peerId: "host",
+    }),
+    {
+      id: "guest",
+      name: "Guest",
+      seat: 1,
+      kind: "human",
+      peerId: "guest-peer",
+      connected: true,
+    },
+    1,
+  )!;
+
+  assert.equal(
+    applyIntent(lobby, { type: "set-roll-timer", enabled: false }, "guest", 0),
+    null,
+    "only the host can change the roll timer",
+  );
+  const untimed = applyIntent(
+    lobby,
+    { type: "set-roll-timer", enabled: false },
+    "host",
+    0,
+  )!;
+  assert.equal(untimed.rollTimerEnabled, false);
+  assert.equal(startMatch(untimed, 0).rollDeadline, 0);
+  assert.ok(startMatch(lobby, 0).rollDeadline > 0);
+
+  assert.equal(
+    applyIntent(
+      lobby,
+      { type: "set-player-seat", playerId: "guest", seat: 2 },
+      "guest",
+      0,
+    ),
+    null,
+    "only the host can change player colors",
+  );
+  const recolored = applyIntent(
+    lobby,
+    { type: "set-player-seat", playerId: "guest", seat: 0 },
+    "host",
+    0,
+  )!;
+  assert.equal(recolored.players.find((player) => player.id === "guest")?.seat, 0);
+  assert.equal(recolored.players.find((player) => player.id === "host")?.seat, 1);
+  assert.ok(
+    recolored.tokens
+      .filter((token) => token.playerId === "guest")
+      .every((token) => token.seat === 0),
+  );
+  assert.equal(
+    applyIntent(
+      startMatch(lobby, 0),
+      { type: "set-player-seat", playerId: "guest", seat: 2 },
+      "host",
+      1,
+    ),
+    null,
+    "lobby settings cannot be changed after starting the game",
+  );
 }
 
 {

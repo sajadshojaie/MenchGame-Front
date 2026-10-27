@@ -43,6 +43,7 @@ export interface GameState {
   hostId: string;
   maxPlayers: PlayerCount;
   status: MatchStatus;
+  rollTimerEnabled: boolean;
   players: Player[];
   tokens: Token[];
   currentPlayerIndex: number;
@@ -76,7 +77,9 @@ export type Intent =
   | { type: "move"; tokenId: string }
   | { type: "start" }
   | { type: "add-bot" }
-  | { type: "rematch" };
+  | { type: "rematch" }
+  | { type: "set-roll-timer"; enabled: boolean }
+  | { type: "set-player-seat"; playerId: string; seat: number };
 
 export interface LegalMove {
   tokenId: string;

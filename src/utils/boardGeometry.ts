@@ -43,8 +43,8 @@ export function trackPerPlayer(count: PlayerCount): number {
   return 6;
 }
 
-export function homeLength(count: PlayerCount): number {
-  return count <= 4 ? 5 : 4;
+export function homeLength(_count: PlayerCount): number {
+  return 4;
 }
 
 export function trackLength(count: PlayerCount): number {
@@ -69,10 +69,10 @@ const CLASSIC_PATH: Array<[number, number]> = [
 ];
 
 const CLASSIC_HOMES: Array<Array<[number, number]>> = [
-  [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
-  [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
-  [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]],
-  [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
+  [[7, 1], [7, 2 + 1 / 3], [7, 3 + 2 / 3], [7, 5]],
+  [[1, 7], [2 + 1 / 3, 7], [3 + 2 / 3, 7], [5, 7]],
+  [[7, 13], [7, 11 + 2 / 3], [7, 10 + 1 / 3], [7, 9]],
+  [[13, 7], [11 + 2 / 3, 7], [10 + 1 / 3, 7], [9, 7]],
 ];
 
 const CLASSIC_YARDS: Array<{ row: number; col: number }> = [
@@ -179,7 +179,7 @@ function buildClassic(playerCount: PlayerCount): BoardLayout {
     viewBox: VIEW,
     shape: "square",
     trackLength: 56,
-    homeLength: 5,
+    homeLength: homeLength(playerCount),
     cellSize: size,
     track,
     homes,

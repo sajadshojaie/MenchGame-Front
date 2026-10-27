@@ -19,7 +19,7 @@ export interface RoomConnection {
   selfId: string;
   send: (message: WireMessage, target?: string) => void;
   ensurePeer: (peerId: string) => void;
-  leave: () => void;
+  leave: () => Promise<void>;
   peerIds: () => string[];
 }
 
@@ -67,6 +67,7 @@ export async function connectRoom(
     options?.selfId || `${role === "host" ? "h" : "g"}-${crypto.randomUUID()}`;
   const peers = new Set<string>();
   let gone = false;
+  let closing: Promise<void> | null = null;
   let joining = Promise.resolve();
 
   const baseUrl = import.meta.env.VITE_BASE_URL;
@@ -188,13 +189,14 @@ export async function connectRoom(
     },
     ensurePeer: () => {},
     leave: () => {
-      if (gone) return;
+      if (closing) return closing;
+      if (gone) return Promise.resolve();
       gone = true;
       window.removeEventListener("online", onOnline);
       connection.onreconnecting(() => undefined);
       connection.onreconnected(() => undefined);
       connection.onclose(() => undefined);
-      const halt = async () => {
+      closing = (async () => {
         try {
           if (connection.state === HubConnectionState.Connected) {
             await Promise.race([
@@ -202,16 +204,17 @@ export async function connectRoom(
               new Promise((resolve) => window.setTimeout(resolve, 250)),
             ]);
           }
-        } catch {
-          console.error("error in halt");
+        } catch (error) {
+          console.error("Failed to leave the room before closing the connection.", error);
         }
         try {
           await connection.stop();
-        } catch {
-          console.error("error in halt");
+        } catch (error) {
+          console.error("Failed to stop the room connection.", error);
+          throw error;
         }
-      };
-      void halt();
+      })();
+      return closing;
     },
     peerIds: () => [...peers],
   };
