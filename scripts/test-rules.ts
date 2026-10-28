@@ -294,6 +294,55 @@ function fresh(count: PlayerCount = 4) {
   assert.equal(state.tokens.find((item) => item.id === first.id)?.progress, len + 3);
 }
 
+for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
+  let state = fresh(count);
+  const len = trackLength(count);
+  const currentIndex = count - 2;
+  const current = state.players[currentIndex];
+  const finalToken = state.tokens.find(
+    (token) => token.playerId === current.id && token.index === 3,
+  )!;
+  state = {
+    ...state,
+    currentPlayerIndex: currentIndex,
+    phase: "move",
+    dice: 1,
+    rankings: state.players.slice(0, currentIndex).map((player) => player.id),
+    tokens: state.tokens.map((token) => {
+      if (token.playerId !== current.id) return token;
+      if (token.index === 3) return { ...token, progress: len - 1 };
+      return { ...token, progress: len + 3 - token.index };
+    }),
+  };
+  assert.ok(legalMoves(state).some((move) => move.tokenId === finalToken.id));
+  state = applyMove(state, finalToken.id, 0);
+  assert.equal(state.status, "finished", `${count} players: game ends with one remaining`);
+  assert.equal(state.rankings.length, count - 1);
+}
+
+{
+  let state = fresh(4);
+  const len = trackLength(4);
+  const current = state.players[1];
+  const finalToken = state.tokens.find(
+    (token) => token.playerId === current.id && token.index === 3,
+  )!;
+  state = {
+    ...state,
+    currentPlayerIndex: 1,
+    phase: "move",
+    dice: 1,
+    rankings: [state.players[0].id],
+    tokens: state.tokens.map((token) => {
+      if (token.playerId !== current.id) return token;
+      if (token.index === 3) return { ...token, progress: len - 1 };
+      return { ...token, progress: len + 3 - token.index };
+    }),
+  };
+  state = applyMove(state, finalToken.id, 0);
+  assert.equal(state.status, "playing", "game continues with two players remaining");
+}
+
 {
   let state = fresh(4);
   const len = trackLength(4);
