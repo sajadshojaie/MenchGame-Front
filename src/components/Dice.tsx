@@ -61,6 +61,7 @@ const VIEW_Y = 20;
 export function Dice({ value, rolling, enabled, label, onRoll }: DiceProps) {
   const shown = value && value >= 1 && value <= 6 ? value : 1;
   const face = FACES.find((item) => item.value === shown) ?? FACES[0];
+  const hasResult = !rolling && value != null && value >= 1 && value <= 6;
   const [spins, setSpins] = useState(0);
   const spinLock = useRef(false);
 
@@ -84,13 +85,17 @@ export function Dice({ value, rolling, enabled, label, onRoll }: DiceProps) {
         className={`dice-btn ${enabled ? "dice-btn-live" : ""}`}
       >
         <span
-          className="dice-cube"
+          className={`dice-cube ${rolling ? "dice-cube-rolling" : ""}`}
           style={{
             transform: `rotateX(${VIEW_X + spins * 360}deg) rotateY(${VIEW_Y + spins * 360}deg) rotateX(${face.turnX}deg) rotateZ(${face.turnZ}deg)`,
           }}
         >
           {FACES.map((side) => (
-            <span key={side.value} className="dice-side" style={{ transform: side.transform }}>
+            <span
+              key={side.value}
+              className={`dice-side${hasResult ? (side.value === shown ? " dice-side-active" : " dice-side-dimmed") : ""}`}
+              style={{ transform: side.transform }}
+            >
               {(PIPS[side.value] ?? []).map(([col, row]) => (
                 <span key={`${side.value}-${col}-${row}`} className="dice-pip" style={{ gridColumn: col + 1, gridRow: row + 1 }} />
               ))}

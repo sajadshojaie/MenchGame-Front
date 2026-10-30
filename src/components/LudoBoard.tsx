@@ -156,14 +156,35 @@ function TrackStone({ layout, cell, occupied }: { layout: BoardLayout; cell: Tra
   const r = cell.size * 0.46;
   return (
     <g>
-      <FlatDisc cx={cell.x} cy={cell.y} r={r} fill={start ? themeFor(cell.startFor ?? cell.zone).hex : "#ffffff"} ring={start ? "#ffffff" : "#d5e8f4"} />
       {start ? (
-        <polygon
-          points={arrowPolygon(r * 0.42)}
-          fill="#ffffff"
-          transform={`translate(${fmt(cell.x)} ${fmt(cell.y)}) rotate(${fmt(angle)})`}
-        />
-      ) : null}
+        <>
+          <circle cx={fmt(cell.x)} cy={fmt(cell.y)} r={fmt(r * 1.14)} fill={start.soft} />
+          <circle
+            cx={fmt(cell.x)}
+            cy={fmt(cell.y)}
+            r={fmt(r * 0.88)}
+            fill={start.hex}
+            stroke="#ffffff"
+            strokeWidth={3}
+          />
+          <circle
+            cx={fmt(cell.x)}
+            cy={fmt(cell.y)}
+            r={fmt(r * 0.66)}
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth={1.5}
+            opacity={0.75}
+          />
+          <polygon
+            points={arrowPolygon(r * 0.38)}
+            fill="#ffffff"
+            transform={`translate(${fmt(cell.x)} ${fmt(cell.y)}) rotate(${fmt(angle)})`}
+          />
+        </>
+      ) : (
+        <FlatDisc cx={cell.x} cy={cell.y} r={r} fill="#ffffff" ring="#d5e8f4" />
+      )}
     </g>
   );
 }

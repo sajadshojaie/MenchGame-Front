@@ -19,20 +19,39 @@ body {
 body {
   font-family: var(--font-vazirmatn), sans-serif;
   background:
-    radial-gradient(180px 56px at 8% 12%, rgba(255, 255, 255, 0.95), transparent 70%),
-    radial-gradient(220px 70px at 78% 6%, rgba(255, 255, 255, 0.9), transparent 72%),
-    radial-gradient(200px 60px at 88% 78%, rgba(255, 255, 255, 0.75), transparent 70%),
-    radial-gradient(160px 48px at 18% 88%, rgba(255, 255, 255, 0.8), transparent 70%),
-    linear-gradient(180deg, #8ecff6 0%, #c5e8fb 55%, #e7f6ff 100%);
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(44, 153, 133, 0.11) 0 7rem,
+      transparent 7.1rem
+    ),
+    radial-gradient(
+      circle at 88% 78%,
+      rgba(235, 174, 54, 0.13) 0 9rem,
+      transparent 9.1rem
+    ),
+    radial-gradient(
+      circle at 78% 12%,
+      rgba(62, 139, 190, 0.1) 0 5rem,
+      transparent 5.1rem
+    ),
+    linear-gradient(135deg, #f3f8f6 0%, #edf4f8 52%, #f8f5ed 100%);
   color: #16324d;
 }
 
 html.dark body {
   background:
-    radial-gradient(420px 180px at 12% 0%, rgba(80, 120, 180, 0.22), transparent 70%),
-    radial-gradient(380px 160px at 90% 10%, rgba(240, 180, 60, 0.12), transparent 68%),
-    linear-gradient(180deg, #101820 0%, #182430 55%, #0e141c 100%);
-  color: #e7eef6;
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(70, 154, 147, 0.13) 0 8rem,
+      transparent 8.1rem
+    ),
+    radial-gradient(
+      circle at 88% 78%,
+      rgba(211, 160, 63, 0.11) 0 10rem,
+      transparent 10.1rem
+    ),
+    linear-gradient(135deg, #1b2a34 0%, #263744 52%, #303b45 100%);
+  color: #edf4fa;
 }
 
 .font-display {
@@ -153,7 +172,7 @@ html.dark body {
 
 .dice-stage {
   width: 112px;
-  perspective: 520px;
+  perspective: 700px;
 }
 
 .dice-dock {
@@ -174,7 +193,7 @@ html.dark body {
   display: grid;
   place-items: center;
   color: #1a1a1a;
-  perspective: 520px;
+  perspective: 700px;
   transform-style: preserve-3d;
 }
 
@@ -187,8 +206,13 @@ html.dark body {
   height: 12px;
   transform: translateX(-50%);
   border-radius: 50%;
-  background: rgba(20, 40, 60, 0.16);
-  filter: blur(2px);
+  background: rgba(20, 40, 60, 0.2);
+  box-shadow: 0 0 8px 3px rgba(20, 40, 60, 0.12);
+  transition:
+    width 0.25s ease,
+    background 0.25s ease,
+    box-shadow 0.25s ease;
+  pointer-events: none;
 }
 
 .dice-cube {
@@ -205,13 +229,51 @@ html.dark body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  padding: 8px;
-  border-radius: 10px;
-  background: linear-gradient(160deg, #ffffff 0%, #f4f1ea 58%, #e7e2d8 100%);
+  padding: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(160, 139, 103, 0.38);
+  border-radius: 5px;
+  background:
+    radial-gradient(ellipse at 18% 12%, rgba(255, 255, 255, 0.98), transparent 58%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(210, 198, 174, 0.08) 0 1px,
+      transparent 1px 5px
+    ),
+    linear-gradient(145deg, #fffefa 0%, #f5f0e5 56%, #e4dccb 100%);
   box-shadow:
-    inset 0 1px 0 #fff,
-    inset 0 -6px 8px rgba(70, 50, 20, 0.08);
+    inset 0 2px 2px rgba(255, 255, 255, 0.98),
+    inset 0 -7px 10px rgba(70, 50, 20, 0.14),
+    0 1px 2px rgba(58, 42, 18, 0.18);
   backface-visibility: hidden;
+  transition:
+    filter 0.28s ease,
+    opacity 0.28s ease,
+    box-shadow 0.28s ease;
+}
+
+.dice-side::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(174, 151, 111, 0.34);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+}
+
+.dice-side-active {
+  box-shadow:
+    inset 0 2px 2px #fff,
+    inset 0 -5px 8px rgba(70, 50, 20, 0.1),
+    0 0 0 2px rgba(255, 255, 255, 0.72),
+    0 0 18px rgba(255, 226, 145, 0.72),
+    0 8px 18px rgba(37, 46, 60, 0.22);
+}
+
+.dice-side-dimmed {
+  filter: brightness(0.78) saturate(0.62);
+  opacity: 0.82;
 }
 
 .dice-btn:disabled {
@@ -220,6 +282,17 @@ html.dark body {
 
 .dice-btn-live {
   cursor: pointer;
+}
+
+.dice-btn-live:hover::after {
+  width: 62px;
+  background: rgba(20, 40, 60, 0.25);
+  box-shadow: 0 0 10px 4px rgba(20, 40, 60, 0.16);
+}
+
+.dice-btn:focus-visible {
+  outline: 3px solid #e8ad31;
+  outline-offset: -2px;
 }
 
 .dice-result {
@@ -231,12 +304,15 @@ html.dark body {
 }
 
 .dice-pip {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   margin: auto;
   border-radius: 999px;
-  background: radial-gradient(circle at 35% 35%, #4a3828, #1a120c 70%);
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+  background: radial-gradient(circle at 34% 28%, #76634f 0%, #33271c 42%, #17110b 78%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 2px rgba(0, 0, 0, 0.45),
+    0 1px 1px rgba(255, 255, 255, 0.65);
 }
 
 .field {
@@ -364,35 +440,82 @@ html.dark body {
   box-shadow: 0 0 0 1px rgba(240, 180, 40, 0.7);
 }
 
-html.dark .text-\[\#14324f\],
-html.dark .text-\[\#16324d\] {
-  color: #e8f1f8;
+html.dark .lobby-card {
+  background: #2b3b49;
+  box-shadow: 0 24px 60px rgba(8, 17, 26, 0.28);
 }
 
-html.dark .text-\[\#24506f\],
-html.dark .text-\[\#5a7e99\],
-html.dark .text-\[\#3d6484\] {
-  color: #9db4c8;
+html.dark .game-header {
+  background: rgba(39, 55, 68, 0.88);
+  border-color: rgba(211, 226, 238, 0.12);
 }
 
-html.dark .bg-white,
-html.dark .bg-white\/90,
-html.dark .bg-white\/80,
-html.dark .bg-white\/75,
-html.dark .bg-white\/70,
-html.dark .bg-white\/60,
-html.dark .bg-white\/55 {
-  background-color: rgba(22, 32, 46, 0.92);
+html.dark aside {
+  background-color: rgba(39, 55, 68, 0.9);
+  border-color: rgba(211, 226, 238, 0.12);
 }
 
-html.dark .bg-\[\#eef6fb\],
-html.dark .bg-\[\#f4f9fd\] {
-  background-color: rgba(255, 255, 255, 0.06);
+html.dark [class~="bg-white"],
+html.dark [class~="bg-white/90"],
+html.dark [class~="bg-white/80"],
+html.dark [class~="bg-white/75"],
+html.dark [class~="bg-white/70"],
+html.dark [class~="bg-white/65"],
+html.dark [class~="bg-white/60"],
+html.dark [class~="bg-white/55"] {
+  background-color: #344858;
 }
 
-html.dark .border-\[\#14324f\]\/10,
-html.dark .ring-white {
-  border-color: rgba(255, 255, 255, 0.08);
+html.dark [class~="bg-[#eef6fb]"],
+html.dark [class~="bg-[#eaf2f7]"],
+html.dark [class~="bg-[#f4f9fd]"],
+html.dark [class~="bg-[#e6f4f3]"],
+html.dark [class~="bg-[#e8f4f3]"] {
+  background-color: #3a5061;
+}
+
+html.dark [class*="text-[#14324f]"],
+html.dark [class*="text-[#16324d]"] {
+  color: #edf4fa;
+}
+
+html.dark [class*="text-[#24506f]"],
+html.dark [class*="text-[#5a7e99]"],
+html.dark [class*="text-[#3d6484]"],
+html.dark [class*="text-[#34566e]"],
+html.dark [class*="text-[#45657d]"],
+html.dark [class*="text-[#617d91]"],
+html.dark [class*="text-[#668197]"],
+html.dark [class*="text-[#7f9aaf]"] {
+  color: #b7c9d8;
+}
+
+html.dark [class*="border-[#14324f]"],
+html.dark [class*="border-[#d9e7ee]"],
+html.dark [class*="border-[#e2edf1]"],
+html.dark [class*="ring-white"] {
+  border-color: rgba(211, 226, 238, 0.15);
+}
+
+html.dark [aria-labelledby="game-results-title"] > section,
+html.dark [aria-labelledby="game-rules-title"] > div {
+  background-image: linear-gradient(180deg, #2c3d4c, #34495a);
+}
+
+html.dark [class*="bg-[#d9e7ee]"] {
+  background-color: #3a5061;
+}
+
+html.dark [class*="text-[#17344f]"] {
+  color: #edf4fa;
+}
+
+html.dark [class*="text-[#66829a]"] {
+  color: #b7c9d8;
+}
+
+html.dark [class*="text-[#9b741e]"] {
+  color: #e7c675;
 }
 
 html.dark .field,
@@ -401,27 +524,37 @@ html.dark .count-btn,
 html.dark .icon-btn,
 html.dark .chip,
 html.dark .move-btn {
-  background: rgba(255, 255, 255, 0.06);
-  color: #e7eef6;
-  border-color: rgba(255, 255, 255, 0.12);
+  background: #304454;
+  color: #edf4fa;
+  border-color: rgba(211, 226, 238, 0.17);
+}
+
+html.dark .field::placeholder {
+  color: #9fb3c3;
 }
 
 html.dark .seg {
-  color: #b7c9d8;
+  color: #c0d0dc;
 }
 
 html.dark .seg-on {
-  background: #243246;
-  color: #f4f7fb;
+  background: #496276;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(8, 17, 26, 0.22);
 }
 
 html.dark .dice-result {
   color: #f4f7fb;
 }
 
-html.dark .lobby-card {
-  background: rgba(16, 24, 36, 0.88);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+html.dark .dice-btn::after {
+  background: rgba(4, 12, 20, 0.35);
+  box-shadow: 0 0 8px 3px rgba(4, 12, 20, 0.2);
+}
+
+html.dark .count-on,
+html.dark .btn-primary {
+  color: #2a1a04;
 }
 
 @media (prefers-reduced-motion: reduce) {

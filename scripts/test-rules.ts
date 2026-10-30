@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { buildLayout, finishProgress, homeLength, minCenterDistance, seatOrder, seatPlan, trackLength } from "../src/utils/boardGeometry.ts";
+import { buildLayout, finishProgress, homeLength, minCenterDistance, seatOrder, seatPlan, trackLength, TOKENS_PER_PLAYER } from "../src/utils/boardGeometry.ts";
 import {
   addBot,
   addHuman,
@@ -42,12 +42,13 @@ for (let i = 0; i < classicCells.length; i++) {
 
 assert.equal(trackLength(2), 56);
 assert.equal(trackLength(3), 56);
-assert.equal(homeLength(2), 4);
-assert.equal(homeLength(3), 4);
-assert.equal(homeLength(5), 4);
-assert.equal(buildLayout(2).homeLength, 4);
-assert.equal(buildLayout(3).homeLength, 4);
-assert.equal(finishProgress(4), trackLength(4) + 3);
+assert.equal(TOKENS_PER_PLAYER, 5);
+assert.equal(homeLength(2), 5);
+assert.equal(homeLength(3), 5);
+assert.equal(homeLength(5), 5);
+assert.equal(buildLayout(2).homeLength, 5);
+assert.equal(buildLayout(3).homeLength, 5);
+assert.equal(finishProgress(4), trackLength(4) + 4);
 assert.deepEqual(seatPlan(2), [0, 2]);
 assert.deepEqual(seatPlan(3), [0, 1, 2]);
 assert.deepEqual(seatOrder(2, 3), [3, 1]);
@@ -77,9 +78,22 @@ for (const count of [4, 5, 6] as PlayerCount[]) {
   }
 }
 
+for (const count of [5, 6] as const) {
+  const layout = buildLayout(count);
+  for (const yard of layout.yards) {
+    const nearestTokenSlot = Math.min(
+      ...yard.slots.map((slot) => Math.hypot(yard.label.x - slot.x, yard.label.y - slot.y)),
+    );
+    assert.ok(
+      nearestTokenSlot > layout.cellSize * 0.65,
+      `${count}-player name label overlaps its token slots`,
+    );
+  }
+}
+
 const classicLayout = buildLayout(4);
 for (const seat of classicLayout.homes) {
-  assert.equal(seat.length, 4);
+  assert.equal(seat.length, 5);
   for (let index = 1; index < seat.length; index++) {
     const previous = seat[index - 1];
     const current = seat[index];
@@ -91,8 +105,20 @@ for (const seat of classicLayout.homes) {
 {
   const match = fresh(2);
   assert.equal(match.players.length, 2);
+  assert.equal(match.tokens.length, 2 * TOKENS_PER_PLAYER);
   assert.deepEqual(match.players.map((player) => player.seat), [0, 2]);
   assert.equal(match.maxPlayers, 2);
+}
+
+for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
+  const state = fresh(count);
+  const layout = buildLayout(count);
+  assert.equal(state.tokens.length, count * TOKENS_PER_PLAYER);
+  assert.ok(state.players.every(
+    (player) => state.tokens.filter((token) => token.playerId === player.id).length === TOKENS_PER_PLAYER,
+  ));
+  assert.ok(layout.homes.every((lane) => lane.length === TOKENS_PER_PLAYER));
+  assert.ok(layout.yards.every((yard) => yard.slots.length === TOKENS_PER_PLAYER));
 }
 
 function fresh(count: PlayerCount = 4) {
@@ -110,7 +136,7 @@ function fresh(count: PlayerCount = 4) {
   state = applyMove(state, legalMoves(state)[0].tokenId, 0);
   assert.equal(needsOpeningSix(state), false);
   const home = state.tokens.filter((token) => token.playerId === state.players[0].id && token.progress < 0);
-  assert.equal(home.length, 3);
+  assert.equal(home.length, TOKENS_PER_PLAYER - 1);
   state = { ...state, currentPlayerIndex: 1 };
   assert.equal(needsOpeningSix(state), true);
   assert.equal(openingFaceCount(0), 6);
@@ -147,7 +173,7 @@ function fresh(count: PlayerCount = 4) {
   state = applyRoll(state, 6, 0);
   assert.equal(state.phase, "move");
   const moves = legalMoves(state);
-  assert.equal(moves.length, 4);
+  assert.equal(moves.length, TOKENS_PER_PLAYER);
   assert.ok(moves.every((move) => move.from === -1 && move.to === 0));
   state = applyMove(state, moves[0].tokenId, 0);
   assert.equal(state.phase, "roll");
@@ -204,7 +230,7 @@ function fresh(count: PlayerCount = 4) {
   state = applyMove(state, redToken.id, 0);
   const victim = state.tokens.find((token) => token.playerId === green.id && token.index === 0);
   assert.equal(victim?.progress, -1);
-  assert.equal(state.currentPlayerIndex, 0);
+  assert.equal(state.currentPlayerIndex, 1, "capturing a token does not grant an extra turn");
 }
 
 {
@@ -270,9 +296,9 @@ function fresh(count: PlayerCount = 4) {
     tokens: state.tokens.map((token) => (token.id === first.id ? { ...token, progress: len - 1 } : token)),
   };
   assert.equal(legalMoves(state).some((move) => move.tokenId === first.id), false);
-  state = { ...state, dice: 4 };
+  state = { ...state, dice: 5 };
   const exact = legalMoves(state).find((move) => move.tokenId === first.id);
-  assert.equal(exact?.to, len + 3);
+  assert.equal(exact?.to, len + 4);
   assert.equal(exact?.finishes, true);
   state = applyMove(state, first.id, 0);
   assert.equal(tokenParked(state, first.id), true);
@@ -285,13 +311,13 @@ function fresh(count: PlayerCount = 4) {
     tokens: state.tokens.map((token) => (token.id === second.id ? { ...token, progress: len - 1 } : token)),
   };
   assert.equal(legalMoves(state).some((move) => move.tokenId === second.id), false);
-  state = { ...state, dice: 3 };
+  state = { ...state, dice: 4 };
   const behind = legalMoves(state).find((move) => move.tokenId === second.id);
-  assert.equal(behind?.to, len + 2);
+  assert.equal(behind?.to, len + 3);
   assert.equal(behind?.finishes, true);
   state = applyMove(state, second.id, 0);
   assert.equal(tokenParked(state, second.id), true);
-  assert.equal(state.tokens.find((item) => item.id === first.id)?.progress, len + 3);
+  assert.equal(state.tokens.find((item) => item.id === first.id)?.progress, len + 4);
 }
 
 for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
@@ -300,7 +326,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
   const currentIndex = count - 2;
   const current = state.players[currentIndex];
   const finalToken = state.tokens.find(
-    (token) => token.playerId === current.id && token.index === 3,
+    (token) => token.playerId === current.id && token.index === 4,
   )!;
   state = {
     ...state,
@@ -310,8 +336,8 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
     rankings: state.players.slice(0, currentIndex).map((player) => player.id),
     tokens: state.tokens.map((token) => {
       if (token.playerId !== current.id) return token;
-      if (token.index === 3) return { ...token, progress: len - 1 };
-      return { ...token, progress: len + 3 - token.index };
+      if (token.index === 4) return { ...token, progress: len - 1 };
+      return { ...token, progress: len + 4 - token.index };
     }),
   };
   assert.ok(legalMoves(state).some((move) => move.tokenId === finalToken.id));
@@ -325,7 +351,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
   const len = trackLength(4);
   const current = state.players[1];
   const finalToken = state.tokens.find(
-    (token) => token.playerId === current.id && token.index === 3,
+    (token) => token.playerId === current.id && token.index === 4,
   )!;
   state = {
     ...state,
@@ -335,8 +361,8 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
     rankings: [state.players[0].id],
     tokens: state.tokens.map((token) => {
       if (token.playerId !== current.id) return token;
-      if (token.index === 3) return { ...token, progress: len - 1 };
-      return { ...token, progress: len + 3 - token.index };
+      if (token.index === 4) return { ...token, progress: len - 1 };
+      return { ...token, progress: len + 4 - token.index };
     }),
   };
   state = applyMove(state, finalToken.id, 0);
@@ -384,7 +410,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
     0,
   );
   assert.equal(started.status, "playing");
-  assert.equal(started.tokens.length, 8);
+  assert.equal(started.tokens.length, 2 * TOKENS_PER_PLAYER);
   assert.equal(started.maxPlayers, 6);
   assert.deepEqual(started.players.map((player) => player.seat), [0, 1]);
 }
@@ -534,7 +560,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
   assert.equal(pile!.captures.length, 2);
   state = applyMove(state, redToken.id, 0);
   const sentHome = state.tokens.filter((token) => token.playerId === green.id && token.progress < 0);
-  assert.equal(sentHome.length, 4);
+  assert.equal(sentHome.length, TOKENS_PER_PLAYER);
 }
 
 {
@@ -603,7 +629,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
   assert.equal(found?.id, "guest");
   const back = reattachHuman(away, found!.id, "new-peer");
   assert.equal(back.players.find((player) => player.id === "guest")?.connected, true);
-  assert.equal(back.tokens.filter((token) => token.playerId === "host").length, 4);
+  assert.equal(back.tokens.filter((token) => token.playerId === "host").length, TOKENS_PER_PLAYER);
   const stranger = findReturningPlayer(back, { playerId: "x", name: "کس دیگری", seat: 0 }, "x");
   assert.equal(stranger, undefined);
 }

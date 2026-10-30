@@ -9,7 +9,7 @@ import type {
 
 export const VIEW = 1000;
 export const CENTER = 500;
-export const TOKENS_PER_PLAYER = 4;
+export const TOKENS_PER_PLAYER = 5;
 
 /** Corners used on the square board. Two players sit opposite each other. */
 export function seatPlan(count: PlayerCount): number[] {
@@ -44,7 +44,7 @@ export function trackPerPlayer(count: PlayerCount): number {
 }
 
 export function homeLength(_count: PlayerCount): number {
-  return 4;
+  return TOKENS_PER_PLAYER;
 }
 
 export function trackLength(count: PlayerCount): number {
@@ -69,10 +69,10 @@ const CLASSIC_PATH: Array<[number, number]> = [
 ];
 
 const CLASSIC_HOMES: Array<Array<[number, number]>> = [
-  [[7, 1], [7, 2 + 1 / 3], [7, 3 + 2 / 3], [7, 5]],
-  [[1, 7], [2 + 1 / 3, 7], [3 + 2 / 3, 7], [5, 7]],
-  [[7, 13], [7, 11 + 2 / 3], [7, 10 + 1 / 3], [7, 9]],
-  [[13, 7], [11 + 2 / 3, 7], [10 + 1 / 3, 7], [9, 7]],
+  [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
+  [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
+  [[7, 13], [7, 12], [7, 11], [7, 10], [7, 9]],
+  [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
 ];
 
 const CLASSIC_YARDS: Array<{ row: number; col: number }> = [
@@ -147,6 +147,7 @@ function buildClassic(playerCount: PlayerCount): BoardLayout {
     const slots = [
       { x: snap(hub.x - gap), y: snap(hub.y - gap) },
       { x: snap(hub.x + gap), y: snap(hub.y - gap) },
+      { x: snap(hub.x), y: snap(hub.y) },
       { x: snap(hub.x - gap), y: snap(hub.y + gap) },
       { x: snap(hub.x + gap), y: snap(hub.y + gap) },
     ];
@@ -197,13 +198,13 @@ function buildRadial(count: 5 | 6): BoardLayout {
   const per = trackPerPlayer(count);
   const total = per * count;
   const homeLen = homeLength(count);
-  const ringR = 1 / (2 * Math.sin(Math.PI / total));
+  const ringR = 1 / (2 * Math.sin(Math.PI / total)) + 0.5;
   const baseR = ringR + 0.46;
   const yardH = count === 6 ? 2.7 : 2.85;
   const vertexR = baseR + yardH;
   const pad = 52;
   const scale = (VIEW / 2 - pad) / vertexR;
-  const cellSize = snap(scale);
+  const cellSize = snap(2 * ringR * Math.sin(Math.PI / total) * scale);
 
   const starts = Array.from({ length: count }, (_, seat) => seat * per);
   const stars = starts.map((start) => starIndex(start, count));
@@ -250,12 +251,13 @@ function buildRadial(count: 5 | 6): BoardLayout {
     const left = polar(-baseX, baseR, phi, scale);
     const right = polar(baseX, baseR, phi, scale);
     const slotLocal: Array<[number, number]> = [
-      [0, baseR + yardH * 0.5],
-      [-0.72, baseR + yardH * 0.32],
-      [0.72, baseR + yardH * 0.32],
-      [0, baseR + yardH * 0.22],
+      [0, baseR + yardH * 0.48],
+      [-1.2, baseR + yardH * 0.34],
+      [1.2, baseR + yardH * 0.34],
+      [-0.6, baseR + yardH * 0.18],
+      [0.6, baseR + yardH * 0.18],
     ];
-    const labelFromTip = 0.62;
+    const labelFromTip = 0.4;
     const labelY = vertexR - labelFromTip;
     const labelHalf = baseX * (labelFromTip / yardH);
     return {

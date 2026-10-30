@@ -372,7 +372,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
   );
   const status: GameState["status"] = stillPlaying.length <= 1 ? "finished" : state.status;
 
-  const bonus = (state.dice === 6 || move.captures.length > 0) && !justFinished && status === "playing";
+  const bonus = state.dice === 6 && !justFinished && status === "playing";
   const nextIndex = bonus
     ? state.currentPlayerIndex
     : nextPlayerIndex(state, state.currentPlayerIndex, tokens, rankings);

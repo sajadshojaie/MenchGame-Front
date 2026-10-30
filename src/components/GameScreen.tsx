@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import type { GameState, Intent } from "@/types/game";
-import { buildLayout, seatChoices } from "@/utils/boardGeometry";
+import { buildLayout, seatChoices, TOKENS_PER_PLAYER } from "@/utils/boardGeometry";
 import { activePlayer, legalMoves, playerFinished, tokenParked } from "@/utils/gameRules";
 import { faDigits, PLAYER_THEMES, themeFor } from "@/utils/palette";
 import { Dice } from "@/components/Dice";
@@ -300,9 +300,9 @@ export function GameScreen(props: GameScreenProps) {
               <LobbyPanel {...props} />
             </div>
           ) : (
-            <div className="flex w-full flex-col gap-2 lg:h-full lg:justify-between lg:gap-6">
+            <div className="flex w-full flex-col gap-3 lg:gap-4">
               <div className="flex items-center gap-2 sm:flex-col sm:items-stretch lg:contents">
-                <div className="min-w-0 flex-1 lg:contents">
+                <div className="min-w-0 flex-1 sm:flex-none lg:contents">
                   <TurnCard
                     name={displayed?.name ?? "منچ بازی"}
                     seat={displayed?.seat ?? 0}
@@ -331,7 +331,7 @@ export function GameScreen(props: GameScreenProps) {
                   <ArriveNote state={state} />
                 </div>
               ) : null}
-              <div className="flex w-full min-w-0 flex-col gap-1.5 py-1 lg:order-3 lg:gap-2 lg:pb-0">
+              <div className="flex w-full min-w-0 flex-col gap-1 py-1 lg:order-3 lg:gap-2 lg:pb-0">
                 {state.players.map((player) => (
                   <SeatCard
                     key={player.id}
@@ -645,7 +645,7 @@ function ArriveNote({ state }: { state: GameState }) {
   const theme = themeFor(move.seat);
   const finished = player ? playerFinished(state, player.id) : false;
   const text = finished
-    ? `${player?.name ?? "بازیکن"} هر چهار مهره را در خانه‌های رنگی نشاند.`
+    ? `${player?.name ?? "بازیکن"} هر ${faDigits(TOKENS_PER_PLAYER)} مهره را در خانه‌های رنگی نشاند.`
     : `${player?.name ?? "بازیکن"} یک مهره را در خانه رنگی نشاند.`;
   return (
     <p
@@ -699,18 +699,18 @@ function TurnCard({
   const label = mine ? "شما" : name;
   return (
     <div
-      className="flex w-full min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm lg:gap-4 lg:rounded-[1.8rem] lg:px-5 lg:py-5"
+      className="flex w-full min-w-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 shadow-sm lg:gap-3 lg:rounded-2xl lg:px-4 lg:py-3"
       style={{ borderRight: `8px solid ${theme.hex}` }}
     >
       <span
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl font-extrabold text-white shadow-inner lg:h-20 lg:w-20 lg:rounded-3xl lg:text-4xl"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl text-lg font-extrabold text-white shadow-inner lg:h-12 lg:w-12 lg:rounded-2xl lg:text-xl"
         style={{ background: theme.hex }}
       >
         {label.trim().slice(0, 1)}
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-[#5a7e99] lg:text-sm">نوبت</p>
-        <p className="truncate text-xl font-extrabold leading-tight text-[#14324f] lg:text-4xl">
+        <p className="truncate text-xl font-extrabold leading-tight text-[#14324f] lg:text-2xl">
           {label}
         </p>
       </div>
@@ -772,11 +772,11 @@ function SeatCard({
   const theme = themeFor(seat);
   return (
     <div
-      className={`flex shrink-0 items-center gap-1.5 rounded-2xl px-2 py-1.5 lg:w-full lg:gap-2 lg:px-3 lg:py-3 ${active ? "bg-white shadow-sm" : "bg-white/70"} ${className ?? ""}`}
+      className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2 py-1 lg:w-full lg:gap-2 lg:px-2.5 lg:py-2 ${active ? "bg-white shadow-sm" : "bg-white/70"} ${className ?? ""}`}
       style={active ? { outline: `2px solid ${theme.hex}` } : undefined}
     >
-      <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: theme.hex }} />
-      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#14324f] lg:text-sm">
+      <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: theme.hex }} />
+      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#14324f] lg:text-[13px]">
         {name}
       </span>
       {online && !bot ? <LinkDot on={linked} /> : null}
@@ -793,42 +793,48 @@ function SeatCard({
 }
 
 function Rules({ onClose }: { onClose: () => void }) {
+  const rules = [
+    "هر بازیکن پنج مهره دارد؛ هدف این است که همهٔ مهره‌ها را به خانه‌های رنگی خودت برسانی.",
+    "برای وارد کردن مهره به بازی باید ۶ بیاوری. بعد از آن، مهره‌ها را به‌اندازهٔ عدد تاس حرکت بده.",
+    "برای رساندن مهره به خانهٔ پایانی، باید عدد تاس دقیق باشد.",
+    "اگر روی خانهٔ مهرهٔ حریف بنشینی، مهرهٔ او به خانهٔ شروع برمی‌گردد.",
+  ];
+
   return (
     <div
-      className="fixed inset-0 z-40 flex items-end justify-center bg-black/60 p-4 sm:items-center"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-[#10263a]/65 p-3 backdrop-blur-sm sm:p-5"
       onClick={onClose}
     >
       <div
-        className="max-h-[80dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 text-[#16324d]"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="game-rules-title"
+        className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-[1.75rem] border border-white/80 bg-gradient-to-b from-[#fffdf5] to-[#f0f8ff] p-5 text-[#16324d] shadow-[0_28px_90px_rgba(7,28,47,0.36)] sm:p-7"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="font-display text-3xl text-[#14324f]">قانون منچ بازی</h2>
-        <ul className="mt-4 space-y-2 text-sm leading-relaxed text-[#24506f]">
-          <li>هر رنگ چهار مهره دارد و از خانه شروع می‌کند.</li>
-          <li>
-            با آوردن ۶ یک مهره روی خانه شروع همان رنگ می‌آید و دوباره تاس می‌اندازی.
-          </li>
-          <li>سه بار ۶ پشت سر هم نوبت را می‌سوزاند. شش سوم بازی نمی‌شود.</li>
-          <li>
-            اگر روی خانهٔ حریف بنشینی، همهٔ مهره‌های او در آن خانه به چهارخانهٔ اول
-            برمی‌گردند.
-          </li>
-          <li>
-            از مهره‌های سر راه می‌توانی رد شوی. فقط نشستن روی همان خانه آن‌ها را می‌زند.
-          </li>
-          <li>زدن مهره هم یک تاس اضافه می‌دهد.</li>
-          <li>
-            در مسیر رنگی، مهره اول در خانه پنجم می‌ایستد، بعدی در چهارم، و همین‌طور
-            عقب‌تر. از مهره جلویی نمی‌شود رد شد و عدد اضافه هم مجاز نیست.
-          </li>
-          <li>اگر با آن تاس حرکتی ممکن نباشد، نوبت رد می‌شود.</li>
-          <li>برای انداختن تاس ۱۵ ثانیه وقت هست. اگر نیندازی نوبت نفر بعدی می‌شود.</li>
-          <li>
-            هر کس زودتر هر چهار مهره را در خانه‌های رنگی بنشاند برنده است. بقیه ادامه
-            می‌دهند و نفر دوم و سوم مشخص می‌شود.
-          </li>
-        </ul>
-        <button type="button" className="btn-primary mt-5" onClick={onClose}>
+        <div className="mb-5 border-b border-[#d9e7ee] pb-4 text-center">
+          <div className="mx-auto mb-2 grid h-11 w-11 place-items-center rounded-2xl bg-[#e6f4f3] text-[#25877b]">
+            <BookOpen size={22} />
+          </div>
+          <h2 id="game-rules-title" className="font-display text-2xl font-extrabold text-[#14324f] sm:text-3xl">
+            قوانین بازی منچ
+          </h2>
+          <p className="mt-1 text-sm text-[#668197]">قوانین را مرور کن و برای بازی آماده شو</p>
+        </div>
+        <ol className="space-y-2.5">
+          {rules.map((rule, index) => (
+            <li
+              key={rule}
+              className="flex items-start gap-3 rounded-2xl border border-[#e2edf1] bg-white/80 p-3 text-sm leading-7 text-[#34566e] shadow-[0_2px_8px_rgba(22,50,77,0.04)] sm:gap-4 sm:p-3.5"
+            >
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#e8f4f3] text-sm font-extrabold text-[#25877b]">
+                {faDigits(index + 1)}
+              </span>
+              <span>{rule}</span>
+            </li>
+          ))}
+        </ol>
+        <button type="button" className="btn-primary mt-5 w-full sm:w-auto" onClick={onClose}>
           برگشت به میز
         </button>
       </div>
