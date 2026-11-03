@@ -3,6 +3,7 @@ import { buildLayout, finishProgress, homeLength, minCenterDistance, seatOrder, 
 import {
   addBot,
   addHuman,
+  automaticMoveTokenId,
   applyIntent,
   applyMove,
   applyRoll,
@@ -157,6 +158,25 @@ function fresh(count: PlayerCount = 4) {
   assert.equal(configured?.tokenCount, 2);
   assert.equal(configured?.tokens.length, 2);
   assert.equal(applyIntent(lobby, { type: "set-token-count", count: 2 }, "guest", 0), null);
+
+  const withBot = addBot(lobby);
+  const bot = withBot.players.find((player) => player.kind === "bot")!;
+  const removed = applyIntent(
+    withBot,
+    { type: "remove-player", playerId: bot.id },
+    "host",
+    0,
+  );
+  assert.equal(removed?.players.some((player) => player.id === bot.id), false);
+  assert.equal(removed?.tokens.some((token) => token.playerId === bot.id), false);
+  assert.equal(
+    applyIntent(withBot, { type: "remove-player", playerId: "host" }, "host", 0),
+    null,
+  );
+  assert.equal(
+    applyIntent(withBot, { type: "remove-player", playerId: bot.id }, "guest", 0),
+    null,
+  );
 }
 
 {
@@ -178,7 +198,11 @@ function fresh(count: PlayerCount = 4) {
     ),
   };
   state = applyRoll(state, 6, 0);
-  assert.equal(state.phase, "roll");
+  assert.equal(state.phase, "move");
+  assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 0);
+  assert.equal(state.moveSeq, 0);
+  assert.equal(automaticMoveTokenId(state), onlyToken.id);
+  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
   assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 6);
   assert.equal(state.moveSeq, 1);
   assert.equal(state.playerStats[player.id].rolls, 1);
@@ -244,6 +268,8 @@ function fresh(count: PlayerCount = 4) {
   state = applyRoll(state, 6, 0);
   state = applyMove(state, legalMoves(state)[0].tokenId, 0);
   state = applyRoll(state, 6, 0);
+  assert.equal(state.phase, "move");
+  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
   assert.equal(state.phase, "roll");
   assert.equal(state.consecutiveSixes, 2);
   state = applyRoll(state, 6, 0);

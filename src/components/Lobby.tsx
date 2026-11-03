@@ -17,8 +17,8 @@ interface LobbyProps {
   error?: string | null;
   onDismissError?: () => void;
   onLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
-  onCreate: (count: PlayerCount, name: string, seat: number) => void;
-  onJoin: (code: string, name: string, seat: number) => void;
+  onCreate: (count: PlayerCount, name: string) => void;
+  onJoin: (code: string, name: string) => void;
 }
 
 const COUNTS: PlayerCount[] = [2, 3, 4, 5, 6];
@@ -169,7 +169,7 @@ export function Lobby({
           onChange={(event) => rememberName(event.target.value)}
         />
 
-        {panel === "offline" || onlineMode === "join" ? (
+        {panel === "offline" ? (
           <div className="mt-4">
             <p className="mb-2 text-xs font-bold text-[#5a7e99]">رنگ مهره شما</p>
             <div className="flex flex-wrap gap-2">
@@ -325,7 +325,7 @@ export function Lobby({
                   type="button"
                   className="btn-primary mt-4 w-full"
                   disabled={busy || !trimmed}
-                  onClick={() => onCreate(count, trimmed, activeSeat)}
+                  onClick={() => onCreate(count, trimmed)}
                 >
                   ساخت اتاق
                 </button>
@@ -344,7 +344,7 @@ export function Lobby({
                   type="button"
                   className="btn-primary mt-4 w-full"
                   disabled={busy || !trimmed || code.trim().length < 4}
-                  onClick={() => onJoin(code, trimmed, activeSeat)}
+                  onClick={() => onJoin(code, trimmed)}
                 >
                   ورود به اتاق
                 </button>

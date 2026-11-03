@@ -49,8 +49,8 @@ export default function App() {
         error={session.error}
         onDismissError={session.dismissError}
         onLocal={session.startLocal}
-        onCreate={(count, name, seat) => void session.createOnline(count, name, seat)}
-        onJoin={(code, name, seat) => void session.joinOnline(code, name, seat)}
+        onCreate={(count, name) => void session.createOnline(count, name)}
+        onJoin={(code, name) => void session.joinOnline(code, name)}
       />
     );
   }

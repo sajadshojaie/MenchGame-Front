@@ -275,6 +275,24 @@ export function legalMoves(state: GameState, dice = state.dice): LegalMove[] {
   return moves;
 }
 
+export function automaticMoveTokenId(state: GameState): string | null {
+  const moves = legalMoves(state);
+  if (moves.length === 0) return null;
+
+  const player = state.players[state.currentPlayerIndex];
+  if (!player) return null;
+  const parked = parkedTokenIds(state.tokens, player.id, state.maxPlayers);
+  const onBoard = state.tokens.filter(
+    (token) =>
+      token.playerId === player.id && token.progress >= 0 && !parked.has(token.id),
+  );
+  const onlyBoardMove =
+    onBoard.length === 1
+      ? moves.find((move) => move.tokenId === onBoard[0].id)
+      : undefined;
+  return (onlyBoardMove ?? (moves.length === 1 ? moves[0] : undefined))?.tokenId ?? null;
+}
+
 function nextPlayerIndex(state: GameState, from: number, tokens: Token[], rankings: string[]): number {
   const total = state.players.length;
   for (let step = 1; step <= total; step++) {
@@ -366,19 +384,6 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
     busyUntil: now + DICE_MS,
     rollDeadline: 0,
   };
-  const parked = parkedTokenIds(state.tokens, player.id, state.maxPlayers);
-  const onBoard = state.tokens.filter(
-    (token) =>
-      token.playerId === player.id && token.progress >= 0 && !parked.has(token.id),
-  );
-  const onlyBoardMove =
-    onBoard.length === 1
-      ? moves.find((move) => move.tokenId === onBoard[0].id)
-      : undefined;
-  const automaticMove = onlyBoardMove ?? (moves.length === 1 ? moves[0] : undefined);
-  if (automaticMove) {
-    return applyMove(moving, automaticMove.tokenId, now + DICE_MS);
-  }
   return moving;
 }
 
@@ -683,6 +688,36 @@ export function applyIntent(state: GameState, intent: Intent, actorId: string, n
         ...token,
         seat: seatByPlayer.get(token.playerId) ?? token.seat,
       })),
+    };
+  }
+  if (intent.type === "remove-player") {
+    if (actorId !== state.hostId || state.status !== "lobby") return null;
+    const player = state.players.find((item) => item.id === intent.playerId);
+    if (!player || player.id === state.hostId) return null;
+    const players = state.players.filter((item) => item.id !== player.id);
+    const playerIds = new Set(players.map((item) => item.id));
+    const tokens = state.tokens.filter((token) => token.playerId !== player.id);
+    const playerStats = Object.fromEntries(
+      players.map((item) => {
+        const stats = state.playerStats[item.id] ?? {
+          rolls: 0,
+          sixes: 0,
+          captures: {},
+        };
+        const captures = Object.fromEntries(
+          Object.entries(stats.captures).filter(([victimId]) => playerIds.has(victimId)),
+        );
+        return [item.id, { ...stats, captures }];
+      }),
+    );
+    return {
+      ...state,
+      revision: state.revision + 1,
+      players,
+      tokens,
+      playerStats,
+      currentPlayerIndex: Math.min(state.currentPlayerIndex, Math.max(players.length - 1, 0)),
+      rollerIndex: Math.min(state.rollerIndex, Math.max(players.length - 1, 0)),
     };
   }
   if (intent.type === "add-bot") {

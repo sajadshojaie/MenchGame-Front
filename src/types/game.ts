@@ -89,7 +89,8 @@ export type Intent =
   | { type: "rematch" }
   | { type: "set-roll-timer"; enabled: boolean }
   | { type: "set-token-count"; count: TokenCount }
-  | { type: "set-player-seat"; playerId: string; seat: number };
+  | { type: "set-player-seat"; playerId: string; seat: number }
+  | { type: "remove-player"; playerId: string };
 
 export interface LegalMove {
   tokenId: string;

@@ -11,6 +11,7 @@ import {
   Palette,
   RotateCcw,
   Settings2,
+  Trash2,
   Trophy,
   UserPlus,
   Volume2,
@@ -501,15 +502,11 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
         >
           <X size={18} />
         </button>
-        <h2 id="live-report-title" className="pr-10 font-display text-3xl text-[#14324f]">
+        <h2 id="live-report-title" className="font-display text-3xl text-[#14324f]">
           گزارش لحظه‌ای بازی
         </h2>
-        <p className="mt-1 text-sm text-[#5a7e99]">
-          آمار تاس‌ها و مهره‌های زده‌شده تا این لحظه
-        </p>
 
         <section className="mt-5">
-          <h3 className="mb-2 text-sm font-extrabold">شش‌های هر بازیکن</h3>
           <div className="space-y-2">
             {state.players.map((player) => {
               const stats = state.playerStats[player.id] ?? {
@@ -529,8 +526,13 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
                   key={player.id}
                   className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/80 px-3 py-2"
                 >
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: theme.hex }} />
-                  <span className="min-w-20 flex-1 truncate text-sm font-bold">{player.name}</span>
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ background: theme.hex }}
+                  />
+                  <span className="min-w-20 flex-1 truncate text-sm font-bold">
+                    {player.name}
+                  </span>
                   <span className="text-xs">
                     شش: <strong>{faDigits(stats.sixes)}</strong>
                   </span>
@@ -538,7 +540,7 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
                     از پرتاب‌ها: <strong>{faDigits(sixRate)}٪</strong>
                   </span>
                   <span className="text-xs">
-                    سهم از شش‌ها: <strong>{faDigits(sixShare)}٪</strong>
+                    از کل شش‌های بازی: <strong>{faDigits(sixShare)}٪</strong>
                   </span>
                 </div>
               );
@@ -547,34 +549,49 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
         </section>
 
         <section className="mt-6">
-          <h3 className="mb-2 text-sm font-extrabold">مهره‌های زده‌شده توسط هر بازیکن</h3>
           <div className="overflow-x-auto rounded-2xl bg-white/80">
-            <table className="w-full min-w-[420px] border-collapse text-center text-xs">
+            <table className="w-full border-collapse text-center text-xs">
               <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="px-3 py-2 text-right">زننده \ بازیکن</th>
-                  {state.players.map((player) => (
-                    <th key={player.id} className="px-2 py-2 font-bold">
-                      {player.name}
-                    </th>
-                  ))}
+                <tr className="border-b border-slate-200 text-right">
+                  <th className="px-3 py-2">بازیکن زننده</th>
+                  <th className="px-3 py-2">بازیکنی که مهره‌اش زده شده</th>
+                  <th className="px-3 py-2 text-center">تعداد</th>
                 </tr>
               </thead>
               <tbody>
-                {state.players.map((attacker) => (
-                  <tr key={attacker.id} className="border-b border-slate-100 last:border-0">
-                    <th className="px-3 py-2 text-right font-bold">{attacker.name}</th>
-                    {state.players.map((victim) => (
-                      <td key={victim.id} className="px-2 py-2">
-                        {faDigits(
-                          attacker.id === victim.id
-                            ? 0
-                            : (state.playerStats[attacker.id]?.captures[victim.id] ?? 0),
-                        )}
-                      </td>
-                    ))}
+                {state.players.flatMap((attacker) =>
+                  state.players.flatMap((victim) => {
+                    if (attacker.id === victim.id) return [];
+                    const captures =
+                      state.playerStats[attacker.id]?.captures[victim.id] ?? 0;
+                    if (captures === 0) return [];
+                    return [
+                      <tr
+                        key={`${attacker.id}-${victim.id}`}
+                        className="border-b border-slate-100 last:border-0"
+                      >
+                        <td className="px-3 py-2 text-right font-bold">
+                          {attacker.name}
+                        </td>
+                        <td className="px-3 py-2 text-right">{victim.name}</td>
+                        <td className="px-3 py-2">{faDigits(captures)}</td>
+                      </tr>,
+                    ];
+                  }),
+                )}
+                {!state.players.some((attacker) =>
+                  state.players.some(
+                    (victim) =>
+                      attacker.id !== victim.id &&
+                      (state.playerStats[attacker.id]?.captures[victim.id] ?? 0) > 0,
+                  ),
+                ) ? (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-4 text-center text-slate-500">
+                      هنوز مهره‌ای زده نشده است.
+                    </td>
                   </tr>
-                ))}
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -749,6 +766,19 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
                         );
                       })}
                     </div>
+                    {online && isHost && player.id !== state.hostId ? (
+                      <button
+                        type="button"
+                        className="icon-btn !h-8 !w-8 !text-rose-600 hover:!bg-rose-50 dark:!text-rose-300 dark:hover:!bg-rose-500/10"
+                        aria-label={`حذف ${player.name} از اتاق`}
+                        title={`حذف ${player.name} از اتاق`}
+                        onClick={() =>
+                          onAct({ type: "remove-player", playerId: player.id })
+                        }
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    ) : null}
                   </div>
                 );
               })}
@@ -919,7 +949,10 @@ function SeatCard({
       className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2 py-1 lg:w-full lg:gap-2 lg:px-2.5 lg:py-2 ${active ? "bg-white shadow-sm" : "bg-white/70"} ${className ?? ""}`}
       style={active ? { outline: `2px solid ${theme.hex}` } : undefined}
     >
-      <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: theme.hex }} />
+      <span
+        className="h-3.5 w-3.5 shrink-0 rounded-full"
+        style={{ background: theme.hex }}
+      />
       <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#14324f] lg:text-[13px]">
         {name}
       </span>
@@ -960,10 +993,15 @@ function Rules({ onClose }: { onClose: () => void }) {
           <div className="mx-auto mb-2 grid h-11 w-11 place-items-center rounded-2xl bg-[#e6f4f3] text-[#25877b]">
             <BookOpen size={22} />
           </div>
-          <h2 id="game-rules-title" className="font-display text-2xl font-extrabold text-[#14324f] sm:text-3xl">
+          <h2
+            id="game-rules-title"
+            className="font-display text-2xl font-extrabold text-[#14324f] sm:text-3xl"
+          >
             قوانین بازی منچ
           </h2>
-          <p className="mt-1 text-sm text-[#668197]">قوانین را مرور کن و برای بازی آماده شو</p>
+          <p className="mt-1 text-sm text-[#668197]">
+            قوانین را مرور کن و برای بازی آماده شو
+          </p>
         </div>
         <ol className="space-y-2.5">
           {rules.map((rule, index) => (
@@ -978,7 +1016,11 @@ function Rules({ onClose }: { onClose: () => void }) {
             </li>
           ))}
         </ol>
-        <button type="button" className="btn-primary mt-5 w-full sm:w-auto" onClick={onClose}>
+        <button
+          type="button"
+          className="btn-primary mt-5 w-full sm:w-auto"
+          onClick={onClose}
+        >
           برگشت به میز
         </button>
       </div>

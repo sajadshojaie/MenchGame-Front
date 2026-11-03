@@ -14,6 +14,7 @@ import {
   createLobby,
   createLocalMatch,
   hopDuration,
+  automaticMoveTokenId,
   tokenParked,
   legalMoves,
   roomCode,
@@ -79,8 +80,8 @@ export interface SessionController {
   offlinePeerIds: string[];
   reconnecting: boolean;
   startLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
-  createOnline: (count: PlayerCount, name: string, seat: number) => Promise<void>;
-  joinOnline: (code: string, name: string, seat: number) => Promise<void>;
+  createOnline: (count: PlayerCount, name: string) => Promise<void>;
+  joinOnline: (code: string, name: string) => Promise<void>;
   act: (intent: Intent) => void;
   reconnect: () => Promise<void>;
   leave: () => void;
@@ -113,6 +114,7 @@ export function useGameSession(): SessionController {
   const seenMove = useRef(0);
   const winPlayed = useRef(false);
   const readyRef = useRef(false);
+  const leaveRef = useRef<() => void>(() => undefined);
   const joinHelloRef = useRef<{ playerId: string; name: string; seat?: number } | null>(
     null,
   );
@@ -255,7 +257,8 @@ export function useGameSession(): SessionController {
       if (
         intent.type === "set-roll-timer" ||
         intent.type === "set-token-count" ||
-        intent.type === "set-player-seat"
+        intent.type === "set-player-seat" ||
+        intent.type === "remove-player"
       ) {
         connRef.current?.publishLobbySettings(next);
       } else {
@@ -266,9 +269,24 @@ export function useGameSession(): SessionController {
   );
 
   useEffect(() => {
+    if (!isHost || !state || state.status !== "playing" || state.phase !== "move") return;
+    const tokenId = automaticMoveTokenId(state);
+    if (!tokenId) return;
+    const player = state.players[state.currentPlayerIndex];
+    if (!player) return;
+
+    const wait = Math.max(0, state.busyUntil - Date.now()) + 500;
+    const timer = window.setTimeout(() => {
+      hostApply({ type: "move", tokenId }, player.id);
+    }, wait);
+    return () => window.clearTimeout(timer);
+  }, [hostApply, isHost, state]);
+
+  useEffect(() => {
     if (!isHost || !state || state.status !== "playing") return;
     const player = state.players[state.currentPlayerIndex];
     if (!player || player.kind !== "bot") return;
+    if (state.phase === "move" && automaticMoveTokenId(state)) return;
     const revision = state.revision;
     const wait = Math.max(0, state.busyUntil - Date.now()) + BOT_THINK_MS;
     const timer = window.setTimeout(() => {
@@ -365,13 +383,24 @@ export function useGameSession(): SessionController {
             myIdRef.current ?? hello.playerId,
           );
         }
+        const self = myIdRef.current;
+        const wasMember = prev?.players.some(
+          (player) => player.id === self || player.peerId === self,
+        );
+        const remainsMember = incoming.players.some(
+          (player) => player.id === self || player.peerId === self,
+        );
+        if (!hostRef.current && wasMember && !remainsMember) {
+          leaveRef.current();
+          setError("میزبان شما را از اتاق حذف کرد.");
+          return;
+        }
         if (!prev || incoming.revision > prev.revision) {
           commit(incoming);
           setWaiting(false);
           if (hostRef.current && incoming !== message.state) publish(incoming);
         }
         const view = stateRef.current;
-        const self = myIdRef.current;
         const mine = view?.players.find(
           (player) => player.id === self || player.peerId === self,
         );
@@ -556,6 +585,7 @@ export function useGameSession(): SessionController {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, [commit]);
+  leaveRef.current = leave;
 
   const startLocal = useCallback(
     (count: PlayerCount, seats: SeatSetup[], name: string) => {
@@ -573,7 +603,7 @@ export function useGameSession(): SessionController {
   );
 
   const createOnline = useCallback(
-    async (count: PlayerCount, name: string, seat: number) => {
+    async (count: PlayerCount, name: string) => {
       setError(null);
       setWaiting(true);
       setOnline(true);
@@ -593,7 +623,7 @@ export function useGameSession(): SessionController {
             hostName: name,
             count,
             peerId: connection.selfId,
-            hostSeat: seat,
+            hostSeat: 0,
           });
           commit(next);
           flush();
@@ -632,7 +662,7 @@ export function useGameSession(): SessionController {
   );
 
   const joinOnline = useCallback(
-    async (code: string, name: string, seat: number) => {
+    async (code: string, name: string) => {
       const clean = code.trim().toUpperCase();
       if (clean.length < 4) {
         setError("کد پنج‌حرفی اتاق را وارد کنید.");
@@ -651,7 +681,6 @@ export function useGameSession(): SessionController {
         joinHelloRef.current = {
           playerId: connection.selfId,
           name: guestName,
-          seat,
         };
         rememberSeat({
           roomId: clean,
