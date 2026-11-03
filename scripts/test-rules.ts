@@ -43,6 +43,10 @@ for (let i = 0; i < classicCells.length; i++) {
 assert.equal(trackLength(2), 56);
 assert.equal(trackLength(3), 56);
 assert.equal(TOKENS_PER_PLAYER, 5);
+assert.equal(createLocalMatch(2, [
+  { name: "P0", kind: "human" },
+  { name: "P1", kind: "bot" },
+], "Rose").tokenCount, 4);
 assert.equal(homeLength(2), 5);
 assert.equal(homeLength(3), 5);
 assert.equal(homeLength(5), 5);
@@ -126,7 +130,59 @@ function fresh(count: PlayerCount = 4) {
     count,
     Array.from({ length: count }, (_, index) => ({ name: `P${index}`, kind: index === 0 ? "human" : "bot" })),
     "Rose",
+    TOKENS_PER_PLAYER,
   );
+}
+
+{
+  const state = createLocalMatch(
+    2,
+    [
+      { name: "P0", kind: "human" },
+      { name: "P1", kind: "bot" },
+    ],
+    "Rose",
+  );
+  assert.equal(state.tokenCount, 4);
+  assert.equal(state.tokens.length, 8);
+
+  const lobby = createLobby({
+    roomId: "ROOM",
+    hostId: "host",
+    hostName: "Host",
+    count: 2,
+    peerId: "host",
+  });
+  const configured = applyIntent(lobby, { type: "set-token-count", count: 2 }, "host", 0);
+  assert.equal(configured?.tokenCount, 2);
+  assert.equal(configured?.tokens.length, 2);
+  assert.equal(applyIntent(lobby, { type: "set-token-count", count: 2 }, "guest", 0), null);
+}
+
+{
+  let state = createLocalMatch(
+    2,
+    [
+      { name: "P0", kind: "human" },
+      { name: "P1", kind: "bot" },
+    ],
+    "Rose",
+  );
+  const player = state.players[0];
+  const onlyToken = state.tokens.find((token) => token.playerId === player.id)!;
+  state = {
+    ...state,
+    introducedIds: [player.id],
+    tokens: state.tokens.map((token) =>
+      token.id === onlyToken.id ? { ...token, progress: 0 } : token,
+    ),
+  };
+  state = applyRoll(state, 6, 0);
+  assert.equal(state.phase, "roll");
+  assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 6);
+  assert.equal(state.moveSeq, 1);
+  assert.equal(state.playerStats[player.id].rolls, 1);
+  assert.equal(state.playerStats[player.id].sixes, 1);
 }
 
 {
@@ -188,7 +244,8 @@ function fresh(count: PlayerCount = 4) {
   state = applyRoll(state, 6, 0);
   state = applyMove(state, legalMoves(state)[0].tokenId, 0);
   state = applyRoll(state, 6, 0);
-  state = applyMove(state, legalMoves(state).find((move) => move.from < 0)!.tokenId, 0);
+  assert.equal(state.phase, "roll");
+  assert.equal(state.consecutiveSixes, 2);
   state = applyRoll(state, 6, 0);
   assert.equal(state.currentPlayerIndex, 1);
   assert.equal(state.consecutiveSixes, 0);
@@ -230,6 +287,7 @@ function fresh(count: PlayerCount = 4) {
   state = applyMove(state, redToken.id, 0);
   const victim = state.tokens.find((token) => token.playerId === green.id && token.index === 0);
   assert.equal(victim?.progress, -1);
+  assert.equal(state.playerStats[red.id].captures[green.id], 1);
   assert.equal(state.currentPlayerIndex, 1, "capturing a token does not grant an extra turn");
 }
 
@@ -410,7 +468,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
     0,
   );
   assert.equal(started.status, "playing");
-  assert.equal(started.tokens.length, 2 * TOKENS_PER_PLAYER);
+  assert.equal(started.tokens.length, started.players.length * started.tokenCount);
   assert.equal(started.maxPlayers, 6);
   assert.deepEqual(started.players.map((player) => player.seat), [0, 1]);
 }
@@ -629,7 +687,7 @@ for (const count of [2, 3, 4, 5, 6] as PlayerCount[]) {
   assert.equal(found?.id, "guest");
   const back = reattachHuman(away, found!.id, "new-peer");
   assert.equal(back.players.find((player) => player.id === "guest")?.connected, true);
-  assert.equal(back.tokens.filter((token) => token.playerId === "host").length, TOKENS_PER_PLAYER);
+  assert.equal(back.tokens.filter((token) => token.playerId === "host").length, back.tokenCount);
   const stranger = findReturningPlayer(back, { playerId: "x", name: "کس دیگری", seat: 0 }, "x");
   assert.equal(stranger, undefined);
 }

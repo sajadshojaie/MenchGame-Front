@@ -1,4 +1,5 @@
 export type PlayerCount = 2 | 3 | 4 | 5 | 6;
+export type TokenCount = 1 | 2 | 3 | 4 | 5;
 
 export type MatchStatus = "lobby" | "playing" | "finished";
 
@@ -37,11 +38,18 @@ export interface LastMove {
   capturedIds: string[];
 }
 
+export interface PlayerStats {
+  rolls: number;
+  sixes: number;
+  captures: Record<string, number>;
+}
+
 export interface GameState {
   revision: number;
   roomId: string | null;
   hostId: string;
   maxPlayers: PlayerCount;
+  tokenCount: TokenCount;
   status: MatchStatus;
   rollTimerEnabled: boolean;
   players: Player[];
@@ -63,6 +71,7 @@ export interface GameState {
   rollDeadline: number;
   moveSeq: number;
   lastMove: LastMove | null;
+  playerStats: Record<string, PlayerStats>;
 }
 
 export interface SeatSetup {
@@ -79,6 +88,7 @@ export type Intent =
   | { type: "add-bot" }
   | { type: "rematch" }
   | { type: "set-roll-timer"; enabled: boolean }
+  | { type: "set-token-count"; count: TokenCount }
   | { type: "set-player-seat"; playerId: string; seat: number };
 
 export interface LegalMove {

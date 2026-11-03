@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
+  BarChart3,
   Bot,
   Copy,
   Check,
@@ -17,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 import type { GameState, Intent } from "@/types/game";
-import { buildLayout, seatChoices, TOKENS_PER_PLAYER } from "@/utils/boardGeometry";
+import { buildLayout, seatChoices } from "@/utils/boardGeometry";
 import { activePlayer, legalMoves, playerFinished, tokenParked } from "@/utils/gameRules";
 import { faDigits, PLAYER_THEMES, themeFor } from "@/utils/palette";
 import { Dice } from "@/components/Dice";
@@ -46,6 +47,7 @@ export function GameScreen(props: GameScreenProps) {
   const { state } = props;
   const layout = useMemo(() => buildLayout(state.maxPlayers), [state.maxPlayers]);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -145,6 +147,16 @@ export function GameScreen(props: GameScreenProps) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            className="icon-btn !h-8 !w-8 sm:!h-9 sm:!w-auto sm:!px-3"
+            onClick={() => setReportOpen(true)}
+            aria-label="گزارش لحظه‌ای بازی"
+            title="گزارش لحظه‌ای بازی"
+          >
+            <BarChart3 size={16} />
+            <span className="hidden text-xs font-semibold sm:inline">گزارش</span>
+          </button>
           {props.online && state.roomId ? (
             <button
               type="button"
@@ -364,6 +376,9 @@ export function GameScreen(props: GameScreenProps) {
       </div>
 
       {rulesOpen ? <Rules onClose={() => setRulesOpen(false)} /> : null}
+      {reportOpen ? (
+        <LiveReport state={state} onClose={() => setReportOpen(false)} />
+      ) : null}
       {leaveOpen ? (
         <ConfirmLeave
           onStay={() => setLeaveOpen(false)}
@@ -464,6 +479,111 @@ function GameResults({ state, onClose }: { state: GameState; onClose: () => void
   );
 }
 
+function LiveReport({ state, onClose }: { state: GameState; onClose: () => void }) {
+  const totalSixes = state.players.reduce(
+    (sum, player) => sum + (state.playerStats[player.id]?.sixes ?? 0),
+    0,
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#10263a]/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="live-report-title"
+    >
+      <section className="relative my-auto max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-[2rem] border border-white/80 bg-gradient-to-b from-[#fffdf5] to-[#f0f8ff] p-5 text-[#16324d] shadow-[0_28px_90px_rgba(7,28,47,0.36)] sm:p-7">
+        <button
+          type="button"
+          className="icon-btn absolute left-4 top-4"
+          onClick={onClose}
+          aria-label="بستن گزارش"
+        >
+          <X size={18} />
+        </button>
+        <h2 id="live-report-title" className="pr-10 font-display text-3xl text-[#14324f]">
+          گزارش لحظه‌ای بازی
+        </h2>
+        <p className="mt-1 text-sm text-[#5a7e99]">
+          آمار تاس‌ها و مهره‌های زده‌شده تا این لحظه
+        </p>
+
+        <section className="mt-5">
+          <h3 className="mb-2 text-sm font-extrabold">شش‌های هر بازیکن</h3>
+          <div className="space-y-2">
+            {state.players.map((player) => {
+              const stats = state.playerStats[player.id] ?? {
+                rolls: 0,
+                sixes: 0,
+                captures: {},
+              };
+              const sixRate = stats.rolls
+                ? Math.round((stats.sixes / stats.rolls) * 100)
+                : 0;
+              const sixShare = totalSixes
+                ? Math.round((stats.sixes / totalSixes) * 100)
+                : 0;
+              const theme = themeFor(player.seat);
+              return (
+                <div
+                  key={player.id}
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl bg-white/80 px-3 py-2"
+                >
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: theme.hex }} />
+                  <span className="min-w-20 flex-1 truncate text-sm font-bold">{player.name}</span>
+                  <span className="text-xs">
+                    شش: <strong>{faDigits(stats.sixes)}</strong>
+                  </span>
+                  <span className="text-xs">
+                    از پرتاب‌ها: <strong>{faDigits(sixRate)}٪</strong>
+                  </span>
+                  <span className="text-xs">
+                    سهم از شش‌ها: <strong>{faDigits(sixShare)}٪</strong>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="mb-2 text-sm font-extrabold">مهره‌های زده‌شده توسط هر بازیکن</h3>
+          <div className="overflow-x-auto rounded-2xl bg-white/80">
+            <table className="w-full min-w-[420px] border-collapse text-center text-xs">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="px-3 py-2 text-right">زننده \ بازیکن</th>
+                  {state.players.map((player) => (
+                    <th key={player.id} className="px-2 py-2 font-bold">
+                      {player.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {state.players.map((attacker) => (
+                  <tr key={attacker.id} className="border-b border-slate-100 last:border-0">
+                    <th className="px-3 py-2 text-right font-bold">{attacker.name}</th>
+                    {state.players.map((victim) => (
+                      <td key={victim.id} className="px-2 py-2">
+                        {faDigits(
+                          attacker.id === victim.id
+                            ? 0
+                            : (state.playerStats[attacker.id]?.captures[victim.id] ?? 0),
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </div>
+  );
+}
+
 function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
   const empty = state.maxPlayers - state.players.length;
   const colors = seatChoices(state.maxPlayers);
@@ -497,6 +617,30 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
         </div>
 
         <div className="space-y-4 p-3">
+          <div>
+            <div className="mb-2 flex items-center gap-2 px-1">
+              <Settings2 size={15} className="text-slate-500 dark:text-slate-400" />
+              <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
+                تعداد مهره هر بازیکن
+              </p>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {([1, 2, 3, 4, 5] as const).map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  className={`count-btn ${state.tokenCount === count ? "count-on" : ""}`}
+                  aria-pressed={state.tokenCount === count}
+                  disabled={!isHost}
+                  title={isHost ? undefined : "فقط میزبان می‌تواند تغییر دهد"}
+                  onClick={() => onAct({ type: "set-token-count", count })}
+                >
+                  {faDigits(count)}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
             <div className="flex items-center gap-3">
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-600 dark:bg-indigo-400/15 dark:text-indigo-300">
@@ -645,7 +789,7 @@ function ArriveNote({ state }: { state: GameState }) {
   const theme = themeFor(move.seat);
   const finished = player ? playerFinished(state, player.id) : false;
   const text = finished
-    ? `${player?.name ?? "بازیکن"} هر ${faDigits(TOKENS_PER_PLAYER)} مهره را در خانه‌های رنگی نشاند.`
+    ? `${player?.name ?? "بازیکن"} هر ${faDigits(state.tokenCount)} مهره را در خانه‌های رنگی نشاند.`
     : `${player?.name ?? "بازیکن"} یک مهره را در خانه رنگی نشاند.`;
   return (
     <p

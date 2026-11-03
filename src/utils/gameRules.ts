@@ -7,9 +7,10 @@ import type {
   PlayerCount,
   SeatSetup,
   Token,
+  TokenCount,
 } from "@/types/game";
 import {
-  TOKENS_PER_PLAYER,
+  DEFAULT_TOKEN_COUNT,
   finishProgress,
   homeLength,
   seatChoices,
@@ -41,9 +42,12 @@ function layoutOf(count: PlayerCount) {
   return buildLayout(count);
 }
 
-export function createTokens(players: Player[]): Token[] {
+export function createTokens(
+  players: Player[],
+  tokenCount: TokenCount = DEFAULT_TOKEN_COUNT,
+): Token[] {
   return players.flatMap((player) =>
-    Array.from({ length: TOKENS_PER_PLAYER }, (_, index) => ({
+    Array.from({ length: tokenCount }, (_, index) => ({
       id: `${player.id}:${index}`,
       playerId: player.id,
       seat: player.seat,
@@ -53,7 +57,12 @@ export function createTokens(players: Player[]): Token[] {
   );
 }
 
-export function createLocalMatch(count: PlayerCount, seats: SeatSetup[], hostName: string): GameState {
+export function createLocalMatch(
+  count: PlayerCount,
+  seats: SeatSetup[],
+  hostName: string,
+  tokenCount: TokenCount = DEFAULT_TOKEN_COUNT,
+): GameState {
   const fallback = seatPlan(count);
   const players: Player[] = seats.slice(0, count).map((seat, index) => ({
     id: index === 0 ? "local-you" : createId(seat.kind === "bot" ? "bot" : "local"),
@@ -67,6 +76,7 @@ export function createLocalMatch(count: PlayerCount, seats: SeatSetup[], hostNam
     roomId: null,
     hostId: players[0].id,
     maxPlayers: count,
+    tokenCount,
     players,
     status: "playing",
     rollTimerEnabled: true,
@@ -82,6 +92,7 @@ export function createLobby(options: {
   count: PlayerCount;
   peerId: string | null;
   hostSeat?: number;
+  tokenCount?: TokenCount;
 }): GameState {
   const choices = seatChoices(options.count);
   const host: Player = {
@@ -96,6 +107,7 @@ export function createLobby(options: {
     roomId: options.roomId,
     hostId: host.id,
     maxPlayers: options.count,
+    tokenCount: options.tokenCount ?? DEFAULT_TOKEN_COUNT,
     players: [host],
     status: "lobby",
     rollTimerEnabled: true,
@@ -107,6 +119,7 @@ function baseState(partial: {
   roomId: string | null;
   hostId: string;
   maxPlayers: PlayerCount;
+  tokenCount: TokenCount;
   players: Player[];
   status: GameState["status"];
   rollTimerEnabled: boolean;
@@ -117,10 +130,11 @@ function baseState(partial: {
     roomId: partial.roomId,
     hostId: partial.hostId,
     maxPlayers: partial.maxPlayers,
+    tokenCount: partial.tokenCount,
     status: partial.status,
     rollTimerEnabled: partial.rollTimerEnabled,
     players: partial.players,
-    tokens: createTokens(partial.players),
+    tokens: createTokens(partial.players, partial.tokenCount),
     currentPlayerIndex: 0,
     rollerIndex: 0,
     dice: null,
@@ -134,7 +148,14 @@ function baseState(partial: {
     rollDeadline: 0,
     moveSeq: 0,
     lastMove: null,
+    playerStats: emptyPlayerStats(partial.players),
   };
+}
+
+function emptyPlayerStats(players: Player[]): GameState["playerStats"] {
+  return Object.fromEntries(
+    players.map((player) => [player.id, { rolls: 0, sixes: 0, captures: {} }]),
+  );
 }
 
 function nextOpenSeat(state: GameState): number {
@@ -189,7 +210,8 @@ function goalProgressFor(tokens: Token[], token: Token, count: PlayerCount): num
 
 export function playerFinished(state: GameState, playerId: string): boolean {
   const mine = state.tokens.filter((token) => token.playerId === playerId);
-  return mine.length === TOKENS_PER_PLAYER && parkedTokenIds(state.tokens, playerId, state.maxPlayers).size === TOKENS_PER_PLAYER;
+  return mine.length === state.tokenCount &&
+    parkedTokenIds(state.tokens, playerId, state.maxPlayers).size === state.tokenCount;
 }
 
 export function seatOf(state: GameState, playerId: string): number {
@@ -260,7 +282,7 @@ function nextPlayerIndex(state: GameState, from: number, tokens: Token[], rankin
     const player = state.players[index];
     const done =
       rankings.includes(player.id) ||
-      parkedTokenIds(tokens, player.id, state.maxPlayers).size === TOKENS_PER_PLAYER;
+      parkedTokenIds(tokens, player.id, state.maxPlayers).size === state.tokenCount;
     if (!done) return index;
   }
   return from;
@@ -288,7 +310,13 @@ export function hopDuration(from: number, to: number): number {
 export function applyRoll(state: GameState, value: number, now: number): GameState {
   if (state.status !== "playing" || state.phase !== "roll") return state;
   const player = state.players[state.currentPlayerIndex];
+  if (!player) return state;
   const sixes = value === 6 ? state.consecutiveSixes + 1 : 0;
+  const playerStats = state.playerStats[player.id] ?? {
+    rolls: 0,
+    sixes: 0,
+    captures: {},
+  };
   const rolled: GameState = {
     ...state,
     rollerIndex: state.currentPlayerIndex,
@@ -296,6 +324,14 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
     rollId: state.rollId + 1,
     consecutiveSixes: sixes,
     openingMisses: noteOpeningMiss(state, value),
+    playerStats: {
+      ...state.playerStats,
+      [player.id]: {
+        ...playerStats,
+        rolls: playerStats.rolls + 1,
+        sixes: playerStats.sixes + Number(value === 6),
+      },
+    },
     revision: state.revision + 1,
   };
 
@@ -324,12 +360,26 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
     };
   }
 
-  return {
+  const moving: GameState = {
     ...rolled,
     phase: "move",
     busyUntil: now + DICE_MS,
     rollDeadline: 0,
   };
+  const parked = parkedTokenIds(state.tokens, player.id, state.maxPlayers);
+  const onBoard = state.tokens.filter(
+    (token) =>
+      token.playerId === player.id && token.progress >= 0 && !parked.has(token.id),
+  );
+  const onlyBoardMove =
+    onBoard.length === 1
+      ? moves.find((move) => move.tokenId === onBoard[0].id)
+      : undefined;
+  const automaticMove = onlyBoardMove ?? (moves.length === 1 ? moves[0] : undefined);
+  if (automaticMove) {
+    return applyMove(moving, automaticMove.tokenId, now + DICE_MS);
+  }
+  return moving;
 }
 
 export function passRoll(state: GameState, now: number): GameState {
@@ -385,6 +435,18 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
     to: move.to,
     capturedIds: move.captures,
   };
+  const playerStats = { ...state.playerStats };
+  if (move.captures.length) {
+    const captures = { ...(playerStats[player.id]?.captures ?? {}) };
+    for (const capturedId of move.captures) {
+      const victim = state.tokens.find((token) => token.id === capturedId);
+      if (victim) captures[victim.playerId] = (captures[victim.playerId] ?? 0) + 1;
+    }
+    playerStats[player.id] = {
+      ...(playerStats[player.id] ?? { rolls: 0, sixes: 0, captures: {} }),
+      captures,
+    };
+  }
 
   const introducedIds =
     move.from < 0 && !(state.introducedIds ?? []).includes(player.id)
@@ -416,6 +478,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
           ),
     moveSeq: state.moveSeq + 1,
     lastMove,
+    playerStats,
   };
 }
 
@@ -437,7 +500,8 @@ export function addBot(state: GameState): GameState {
     ...state,
     revision: state.revision + 1,
     players,
-    tokens: createTokens(players),
+    tokens: createTokens(players, state.tokenCount),
+    playerStats: { ...state.playerStats, ...emptyPlayerStats(players) },
   };
 }
 
@@ -471,7 +535,11 @@ export function addHuman(state: GameState, player: Player, requestedSeat?: numbe
     ...state,
     revision: state.revision + 1,
     players,
-    tokens: state.status === "lobby" ? createTokens(players) : [...state.tokens, ...createTokens([seated])],
+    tokens:
+      state.status === "lobby"
+        ? createTokens(players, state.tokenCount)
+        : [...state.tokens, ...createTokens([seated], state.tokenCount)],
+    playerStats: { ...state.playerStats, ...emptyPlayerStats([seated]) },
   };
 }
 
@@ -485,7 +553,7 @@ export function startMatch(state: GameState, now: number): GameState {
     status: "playing",
     phase: "roll",
     players,
-    tokens: createTokens(players),
+    tokens: createTokens(players, state.tokenCount),
     currentPlayerIndex: 0,
     rollerIndex: 0,
     dice: null,
@@ -497,6 +565,7 @@ export function startMatch(state: GameState, now: number): GameState {
     rollDeadline: rollClock(players, 0, now, now + 400, true, state.rollTimerEnabled),
     moveSeq: 0,
     lastMove: null,
+    playerStats: emptyPlayerStats(players),
   };
 }
 
@@ -508,7 +577,7 @@ export function rematch(state: GameState, now: number): GameState {
     status: "playing",
     phase: "roll",
     players,
-    tokens: createTokens(players),
+    tokens: createTokens(players, state.tokenCount),
     currentPlayerIndex: 0,
     rollerIndex: 0,
     dice: null,
@@ -521,6 +590,7 @@ export function rematch(state: GameState, now: number): GameState {
     rollDeadline: rollClock(players, 0, now, now + 400, true, state.rollTimerEnabled),
     moveSeq: state.moveSeq + 1,
     lastMove: null,
+    playerStats: emptyPlayerStats(players),
   };
 }
 
@@ -573,6 +643,17 @@ export function convertPeerToBot(state: GameState, peerId: string): GameState {
 }
 
 export function applyIntent(state: GameState, intent: Intent, actorId: string, now: number): GameState | null {
+  if (intent.type === "set-token-count") {
+    if (actorId !== state.hostId || state.status !== "lobby") return null;
+    if (![1, 2, 3, 4, 5].includes(intent.count) || state.tokenCount === intent.count) return null;
+    return {
+      ...state,
+      revision: state.revision + 1,
+      tokenCount: intent.count,
+      tokens: createTokens(state.players, intent.count),
+      playerStats: emptyPlayerStats(state.players),
+    };
+  }
   if (intent.type === "set-roll-timer") {
     if (actorId !== state.hostId || state.status !== "lobby") return null;
     if (state.rollTimerEnabled === intent.enabled) return null;

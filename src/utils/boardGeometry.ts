@@ -10,6 +10,7 @@ import type {
 export const VIEW = 1000;
 export const CENTER = 500;
 export const TOKENS_PER_PLAYER = 5;
+export const DEFAULT_TOKEN_COUNT = 4;
 
 /** Corners used on the square board. Two players sit opposite each other. */
 export function seatPlan(count: PlayerCount): number[] {
