@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Dices, Link2, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { PlayerCount, SeatSetup, TokenCount } from "@/types/game";
+import type { PlayerCount, SeatSetup } from "@/types/game";
 import {
+  DEFAULT_TOKEN_COUNT,
   buildLayout,
   seatChoices,
   seatOrder,
@@ -15,13 +16,12 @@ interface LobbyProps {
   busy?: boolean;
   error?: string | null;
   onDismissError?: () => void;
-  onLocal: (count: PlayerCount, seats: SeatSetup[], name: string, tokenCount: TokenCount) => void;
-  onCreate: (count: PlayerCount, name: string, seat: number, tokenCount: TokenCount) => void;
+  onLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
+  onCreate: (count: PlayerCount, name: string, seat: number) => void;
   onJoin: (code: string, name: string, seat: number) => void;
 }
 
 const COUNTS: PlayerCount[] = [2, 3, 4, 5, 6];
-const TOKEN_COUNTS: TokenCount[] = [1, 2, 3, 4, 5];
 const NAME_KEY = "manch-name";
 const COLOR_KEY = "manch-color";
 
@@ -35,7 +35,6 @@ export function Lobby({
   onJoin,
 }: LobbyProps) {
   const [count, setCount] = useState<PlayerCount>(4);
-  const [tokenCount, setTokenCount] = useState<TokenCount>(4);
   const [name, setName] = useState("");
   const [mySeat, setMySeat] = useState(0);
 
@@ -78,7 +77,7 @@ export function Lobby({
   const previewTokens = useMemo(
     () =>
       plan.flatMap((seat) =>
-        Array.from({ length: tokenCount }, (_, index) => ({
+        Array.from({ length: DEFAULT_TOKEN_COUNT }, (_, index) => ({
           id: `preview-${seat}-${index}`,
           playerId: PLAYER_THEMES[seat].id,
           seat,
@@ -86,7 +85,7 @@ export function Lobby({
           progress: -1,
         })),
       ),
-    [plan, tokenCount],
+    [plan],
   );
   const previewPlayers = plan.map((seat, index) => {
     const theme = PLAYER_THEMES[seat];
@@ -170,44 +169,25 @@ export function Lobby({
           onChange={(event) => rememberName(event.target.value)}
         />
 
-        <div className="mt-4">
-          <p className="mb-2 text-xs font-bold text-[#5a7e99]">رنگ مهره شما</p>
-          <div className="flex flex-wrap gap-2">
-            {choices.map((seat) => {
-              const theme = themeFor(seat);
-              const on = seat === activeSeat;
-              return (
-                <button
-                  key={theme.id}
-                  type="button"
-                  className={`h-9 w-9 rounded-full ${on ? "ring-2 ring-[#14324f] ring-offset-2" : ""}`}
-                  style={{ background: theme.hex }}
-                  aria-label={theme.label}
-                  aria-pressed={on}
-                  onClick={() => chooseColor(seat)}
-                />
-              );
-            })}
-          </div>
-        </div>
-
-        {panel === "offline" || (panel === "online" && onlineMode === "create") ? (
+        {panel === "offline" || onlineMode === "join" ? (
           <div className="mt-4">
-            <p className="mb-2 text-xs font-bold text-[#5a7e99]">
-              تعداد مهره هر بازیکن
-            </p>
-            <div className="grid grid-cols-5 gap-2">
-              {TOKEN_COUNTS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`count-btn ${tokenCount === value ? "count-on" : ""}`}
-                  aria-pressed={tokenCount === value}
-                  onClick={() => setTokenCount(value)}
-                >
-                  {faDigits(value)}
-                </button>
-              ))}
+            <p className="mb-2 text-xs font-bold text-[#5a7e99]">رنگ مهره شما</p>
+            <div className="flex flex-wrap gap-2">
+              {choices.map((seat) => {
+                const theme = themeFor(seat);
+                const on = seat === activeSeat;
+                return (
+                  <button
+                    key={theme.id}
+                    type="button"
+                    className={`h-9 w-9 rounded-full ${on ? "ring-2 ring-[#14324f] ring-offset-2" : ""}`}
+                    style={{ background: theme.hex }}
+                    aria-label={theme.label}
+                    aria-pressed={on}
+                    onClick={() => chooseColor(seat)}
+                  />
+                );
+              })}
             </div>
           </div>
         ) : null}
@@ -295,7 +275,6 @@ export function Lobby({
                     seat: boardSeat,
                   })),
                   trimmed,
-                  tokenCount,
                 )
               }
             >
@@ -346,7 +325,7 @@ export function Lobby({
                   type="button"
                   className="btn-primary mt-4 w-full"
                   disabled={busy || !trimmed}
-                  onClick={() => onCreate(count, trimmed, activeSeat, tokenCount)}
+                  onClick={() => onCreate(count, trimmed, activeSeat)}
                 >
                   ساخت اتاق
                 </button>

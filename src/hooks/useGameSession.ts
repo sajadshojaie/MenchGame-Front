@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { GameState, Intent, PlayerCount, SeatSetup, TokenCount } from "@/types/game";
+import type { GameState, Intent, PlayerCount, SeatSetup } from "@/types/game";
 import { chooseBotMove } from "@/utils/bot";
 import { createSoundboard, type Soundboard } from "@/utils/audio";
 import {
@@ -78,8 +78,8 @@ export interface SessionController {
   inputLocked: boolean;
   offlinePeerIds: string[];
   reconnecting: boolean;
-  startLocal: (count: PlayerCount, seats: SeatSetup[], name: string, tokenCount: TokenCount) => void;
-  createOnline: (count: PlayerCount, name: string, seat: number, tokenCount: TokenCount) => Promise<void>;
+  startLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
+  createOnline: (count: PlayerCount, name: string, seat: number) => Promise<void>;
   joinOnline: (code: string, name: string, seat: number) => Promise<void>;
   act: (intent: Intent) => void;
   reconnect: () => Promise<void>;
@@ -558,10 +558,10 @@ export function useGameSession(): SessionController {
   }, [commit]);
 
   const startLocal = useCallback(
-    (count: PlayerCount, seats: SeatSetup[], name: string, tokenCount: TokenCount) => {
+    (count: PlayerCount, seats: SeatSetup[], name: string) => {
       leave();
       hostRef.current = true;
-      const next = createLocalMatch(count, seats, name, tokenCount);
+      const next = createLocalMatch(count, seats, name);
       myIdRef.current = next.hostId;
       setMyId(next.hostId);
       setIsHost(true);
@@ -573,7 +573,7 @@ export function useGameSession(): SessionController {
   );
 
   const createOnline = useCallback(
-    async (count: PlayerCount, name: string, seat: number, tokenCount: TokenCount) => {
+    async (count: PlayerCount, name: string, seat: number) => {
       setError(null);
       setWaiting(true);
       setOnline(true);
@@ -594,7 +594,6 @@ export function useGameSession(): SessionController {
             count,
             peerId: connection.selfId,
             hostSeat: seat,
-            tokenCount,
           });
           commit(next);
           flush();
