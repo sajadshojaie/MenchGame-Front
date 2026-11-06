@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BookOpen,
   BarChart3,
@@ -6,6 +6,7 @@ import {
   Copy,
   Check,
   Clock3,
+  House,
   LogOut,
   Menu,
   Palette,
@@ -47,7 +48,7 @@ interface GameScreenProps {
 }
 
 export function GameScreen(props: GameScreenProps) {
-  const { state } = props;
+  const { state, onAct } = props;
   const snakes = state.gameMode === "snakes";
   const layout = useMemo(() => buildLayout(state.maxPlayers), [state.maxPlayers]);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -58,6 +59,7 @@ export function GameScreen(props: GameScreenProps) {
   const [dismissedResultRevision, setDismissedResultRevision] = useState<number | null>(
     null,
   );
+  const [arrivalNoticeId, setArrivalNoticeId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
   const [resultReady, setResultReady] = useState(false);
   const current = activePlayer(state);
@@ -75,6 +77,10 @@ export function GameScreen(props: GameScreenProps) {
   );
   const canMove = Boolean(
     controllable && state.phase === "move" && !props.inputLocked && !props.diceRolling,
+  );
+  const handleToken = useCallback(
+    (tokenId: string) => onAct({ type: "move", tokenId }),
+    [onAct],
   );
   const place = (id: string) => {
     const index = state.rankings.indexOf(id);
@@ -103,6 +109,16 @@ export function GameScreen(props: GameScreenProps) {
     const timer = window.setTimeout(() => setResultReady(true), Math.max(0, state.busyUntil - Date.now()) + 500);
     return () => window.clearTimeout(timer);
   }, [state.status, state.busyUntil]);
+  const arrivalMove =
+    !snakes &&
+    state.lastMove &&
+    state.lastMove.from < layout.trackLength &&
+    state.lastMove.to >= layout.trackLength
+      ? state.lastMove
+      : null;
+  const arrivalMoveId = state.lastMove?.id ?? null;
+  const arrivalMoveFrom = state.lastMove?.from ?? null;
+  const arrivalMoveTo = state.lastMove?.to ?? null;
 
   useEffect(() => {
     if (state.status !== "playing") return;
@@ -134,6 +150,23 @@ export function GameScreen(props: GameScreenProps) {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (
+      arrivalMoveId == null ||
+      arrivalMoveFrom == null ||
+      arrivalMoveTo == null ||
+      arrivalMoveFrom >= layout.trackLength ||
+      arrivalMoveTo < layout.trackLength
+    ) {
+      setArrivalNoticeId(null);
+      return;
+    }
+
+    setArrivalNoticeId(arrivalMoveId);
+    const timer = window.setTimeout(() => setArrivalNoticeId(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [arrivalMoveId, arrivalMoveFrom, arrivalMoveTo, layout.trackLength]);
 
   return (
     <div className="flex h-dvh min-w-0 flex-col overflow-hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(190px,30%)] sm:grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -306,7 +339,7 @@ export function GameScreen(props: GameScreenProps) {
                   currentSeat={displayed?.seat ?? null}
                   legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
                   lastMove={state.lastMove}
-                  onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
+                  onToken={handleToken}
                 />
               ) : (
                 <LudoBoard
@@ -316,7 +349,7 @@ export function GameScreen(props: GameScreenProps) {
                   currentSeat={displayed?.seat ?? null}
                   legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
                   lastMove={state.lastMove}
-                  onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
+                  onToken={handleToken}
                 />
               )}
             </div>
@@ -361,7 +394,18 @@ export function GameScreen(props: GameScreenProps) {
                   />
                 </div>
               </div>
-              {state.lastMove && tokenParked(state, state.lastMove.tokenId) ? (
+              {canMove &&
+              state.dice === 6 &&
+              moves.some((move) => move.from < 0) &&
+              moves.some((move) => move.from >= 0) ? (
+                <p className="text-center text-xs font-semibold text-[#5a7e99]">
+                  شش آوردی؛ برای ورود مهرهٔ تازه یا حرکت مهرهٔ داخل مسیر، یکی را انتخاب کن.
+                </p>
+              ) : null}
+              {state.lastMove &&
+              (snakes
+                ? tokenParked(state, state.lastMove.tokenId)
+                : arrivalMove != null && arrivalNoticeId === arrivalMove.id) ? (
                 <div className="lg:order-1">
                   <ArriveNote state={state} />
                 </div>
@@ -484,8 +528,8 @@ function GameResults({ state, onClose }: { state: GameState; onClose: () => void
                 key={player.id}
                 className={`flex items-center gap-3 rounded-2xl border px-3 py-3 ${
                   index === 0
-                    ? "border-[#f2d47c] bg-[#fff7d9] shadow-sm"
-                    : "border-[#dce9f1] bg-white/80"
+                    ? "border-[#f2d47c] bg-[#fff7d9] shadow-sm dark:border-amber-300/30 dark:bg-amber-300/10"
+                    : "border-[#dce9f1] bg-white/80 dark:border-white/10"
                 }`}
               >
                 <span
@@ -499,7 +543,9 @@ function GameResults({ state, onClose }: { state: GameState; onClose: () => void
                 </span>
                 <span
                   className={`shrink-0 text-xs font-extrabold ${
-                    index === 0 ? "text-amber-700" : "text-[#66829a]"
+                    index === 0
+                      ? "text-amber-700 dark:text-amber-300"
+                      : "text-[#66829a]"
                   }`}
                 >
                   {index === 0 ? "قهرمان 🏆" : state.gameMode === "snakes" ? snakePosition(state, player.id) : `نفر ${faDigits(index + 1)}`}
@@ -585,7 +631,7 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
           <div className="overflow-x-auto rounded-2xl bg-white/80">
             <table className="w-full border-collapse text-center text-xs">
               <thead>
-                <tr className="border-b border-slate-200 text-right">
+                <tr className="border-b border-slate-200 text-right dark:border-white/10">
                   <th className="px-3 py-2">بازیکن زننده</th>
                   <th className="px-3 py-2">بازیکنی که مهره‌اش زده شده</th>
                   <th className="px-3 py-2 text-center">تعداد</th>
@@ -601,7 +647,7 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
                     return [
                       <tr
                         key={`${attacker.id}-${victim.id}`}
-                        className="border-b border-slate-100 last:border-0"
+                        className="border-b border-slate-100 last:border-0 dark:border-white/10"
                       >
                         <td className="px-3 py-2 text-right font-bold">
                           {attacker.name}
@@ -865,12 +911,25 @@ function ArriveNote({ state }: { state: GameState }) {
     ? `${player?.name ?? "بازیکن"} هر ${faDigits(state.tokenCount)} مهره را در خانه‌های رنگی نشاند.`
     : `${player?.name ?? "بازیکن"} یک مهره را در خانه رنگی نشاند.`;
   return (
-    <p
-      className="rounded-2xl px-4 py-3 text-center text-sm font-bold text-[#14324f]"
-      style={{ background: theme.soft }}
+    <div
+      className="arrival-note flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold text-[#14324f] shadow-sm"
+      style={{ borderRight: `4px solid ${theme.hex}` }}
+      role="status"
+      aria-live="polite"
     >
-      {text}
-    </p>
+      <span
+        className="arrival-note-icon grid h-9 w-9 shrink-0 place-items-center rounded-xl"
+        style={{ background: theme.soft, color: theme.hex }}
+      >
+        <House size={18} />
+      </span>
+      <span>
+        <span className="block">{player?.name ?? "بازیکن"}</span>
+        <span className="arrival-note-caption block text-xs font-medium text-[#5a7e99]">
+          {text}
+        </span>
+      </span>
+    </div>
   );
 }
 

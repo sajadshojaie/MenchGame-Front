@@ -298,6 +298,14 @@ export function automaticMoveTokenId(state: GameState): string | null {
     (token) =>
       token.playerId === player.id && token.progress >= 0 && !parked.has(token.id),
   );
+  const yardMoves = moves.filter((move) => move.from < 0);
+  const boardMoves = moves.filter((move) => move.from >= 0);
+
+  if (state.dice === 6 && yardMoves.length > 0) {
+    if (boardMoves.length > 0) return null;
+    return yardMoves[0].tokenId;
+  }
+
   const onlyBoardMove =
     onBoard.length === 1
       ? moves.find((move) => move.tokenId === onBoard[0].id)

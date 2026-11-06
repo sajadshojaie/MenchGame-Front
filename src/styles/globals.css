@@ -196,7 +196,7 @@ html.dark .snakes-token .token-ring {
 }
 
 .token-plane {
-  filter: drop-shadow(0 0 1px rgba(12, 40, 70, 0.28));
+  filter: none;
 }
 
 .token-pad {
@@ -562,7 +562,8 @@ html.dark [class*="ring-white"] {
 
 html.dark [aria-labelledby="game-results-title"] > section,
 html.dark [aria-labelledby="live-report-title"] > section,
-html.dark [aria-labelledby="game-rules-title"] {
+html.dark [aria-labelledby="game-rules-title"],
+html.dark [aria-labelledby="game-rules-title"] > div {
   background-image: linear-gradient(180deg, #2c3d4c, #34495a);
   border-color: rgba(211, 226, 238, 0.15);
 }
@@ -590,6 +591,20 @@ html.dark [class*="text-[#66829a]"] {
 
 html.dark [class*="text-[#9b741e]"] {
   color: #e7c675;
+}
+
+html.dark .arrival-note {
+  border-color: rgba(211, 226, 238, 0.15);
+  background: linear-gradient(135deg, #304454, #3a5061);
+  color: #edf4fa;
+}
+
+html.dark .arrival-note-icon {
+  background: color-mix(in srgb, currentColor 18%, #263744);
+}
+
+html.dark .arrival-note-caption {
+  color: #b7c9d8;
 }
 
 html.dark .field,

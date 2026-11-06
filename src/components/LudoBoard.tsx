@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { BoardLayout, LastMove, Player, Point, Token, TrackCell, YardLayout } from "@/types/game";
 import { HOP_MS } from "@/utils/gameRules";
 import { nextTrackPoint, pointForProgress, routePoints } from "@/utils/boardGeometry";
@@ -20,6 +20,17 @@ interface Pose {
   heading: number;
 }
 
+interface TokenSpriteProps {
+  token: Token;
+  layout: BoardLayout;
+  legal: boolean;
+  offset: { dx: number; dy: number };
+  moveSeq: number;
+  holdMs: number;
+  rising: boolean;
+  onToken?: (tokenId: string) => void;
+}
+
 export function LudoBoard({
   layout,
   tokens,
@@ -30,6 +41,7 @@ export function LudoBoard({
   onToken,
 }: LudoBoardProps) {
   const nameById = useMemo(() => new Map(players.map((player) => [player.id, player.name])), [players]);
+  const occupied = useMemo(() => new Set(players.map((player) => player.seat)), [players]);
   const offsets = useMemo(() => stackOffsets(layout, tokens), [layout, tokens]);
 
   return (
@@ -37,9 +49,9 @@ export function LudoBoard({
       <div className="board-frame">
         <svg viewBox={`0 0 ${layout.viewBox} ${layout.viewBox}`} className="h-full w-full" role="img" aria-label="صفحه منچ">
           {layout.shape === "square" ? (
-            <ClassicBoard layout={layout} players={players} currentSeat={currentSeat} nameById={nameById} />
+            <ClassicBoard layout={layout} players={players} currentSeat={currentSeat} nameById={nameById} occupied={occupied} />
           ) : (
-            <RadialBoard layout={layout} players={players} currentSeat={currentSeat} nameById={nameById} />
+            <RadialBoard layout={layout} players={players} currentSeat={currentSeat} nameById={nameById} occupied={occupied} />
           )}
         </svg>
 
@@ -66,13 +78,14 @@ function ClassicBoard({
   players,
   currentSeat,
   nameById,
+  occupied,
 }: {
   layout: BoardLayout;
   players: Player[];
   currentSeat: number | null;
   nameById: Map<string, string>;
+  occupied: Set<number>;
 }) {
-  const occupied = new Set(players.map((player) => player.seat));
   return (
     <>
       <polygon points={pts(layout.outline)} fill="#8ecff2" stroke="#f7fcff" strokeWidth={8} />
@@ -149,7 +162,7 @@ function ClassicYard({
   );
 }
 
-function TrackStone({ layout, cell, occupied }: { layout: BoardLayout; cell: TrackCell; occupied: Set<number> }) {
+const TrackStone = memo(function TrackStone({ layout, cell, occupied }: { layout: BoardLayout; cell: TrackCell; occupied: Set<number> }) {
   const start = cell.startFor != null && occupied.has(cell.startFor) ? themeFor(cell.startFor) : null;
   const next = nextTrackPoint(layout, cell.index);
   const angle = (Math.atan2(next.y - cell.y, next.x - cell.x) * 180) / Math.PI;
@@ -187,7 +200,7 @@ function TrackStone({ layout, cell, occupied }: { layout: BoardLayout; cell: Tra
       )}
     </g>
   );
-}
+});
 
 function CenterDiamond({ layout, occupied }: { layout: BoardLayout; occupied: Set<number> }) {
   const { x: cx, y: cy } = layout.center;
@@ -217,13 +230,14 @@ function RadialBoard({
   players,
   currentSeat,
   nameById,
+  occupied,
 }: {
   layout: BoardLayout;
   players: Player[];
   currentSeat: number | null;
   nameById: Map<string, string>;
+  occupied: Set<number>;
 }) {
-  const occupied = new Set(players.map((player) => player.seat));
   return (
     <>
       <polygon points={pts(layout.outline)} fill="#8ecff2" stroke="#f7fcff" strokeWidth={8} />
@@ -278,7 +292,7 @@ function captureHold(lastMove: LastMove | null, tokenId: string): number {
   return steps * HOP_MS;
 }
 
-function TokenSprite({
+const TokenSprite = memo(function TokenSprite({
   token,
   layout,
   legal,
@@ -287,26 +301,25 @@ function TokenSprite({
   holdMs,
   rising,
   onToken,
-}: {
-  token: Token;
-  layout: BoardLayout;
-  legal: boolean;
-  offset: { dx: number; dy: number };
-  moveSeq: number;
-  holdMs: number;
-  rising: boolean;
-  onToken?: (tokenId: string) => void;
-}) {
+}: TokenSpriteProps) {
   const target = pointForProgress(layout, token.seat, token.index, token.progress);
   const idle = idleHeading(layout, token);
-  const [pose, setPose] = useState<Pose>({ x: target.x + offset.dx, y: target.y + offset.dy, heading: idle });
+  const [pose, setPose] = useState<Pose>({
+    x: target.x + offset.dx,
+    y: target.y + offset.dy,
+    heading: idle,
+  });
   const progressRef = useRef(token.progress);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const from = progressRef.current;
     const to = token.progress;
-    const end: Pose = { x: target.x + offset.dx, y: target.y + offset.dy, heading: idleHeading(layout, token) };
+    const end: Pose = {
+      x: target.x + offset.dx,
+      y: target.y + offset.dy,
+      heading: idleHeading(layout, token),
+    };
     let frame = 0;
     let stopped = false;
     const finish = () => {
@@ -399,7 +412,19 @@ function TokenSprite({
       </span>
     </button>
   );
-}
+}, (previous, next) =>
+  previous.token.id === next.token.id &&
+  previous.token.seat === next.token.seat &&
+  previous.token.index === next.token.index &&
+  previous.token.progress === next.token.progress &&
+  previous.layout === next.layout &&
+  previous.legal === next.legal &&
+  previous.offset.dx === next.offset.dx &&
+  previous.offset.dy === next.offset.dy &&
+  previous.moveSeq === next.moveSeq &&
+  previous.holdMs === next.holdMs &&
+  previous.rising === next.rising &&
+  previous.onToken === next.onToken);
 
 function Airplane({ color, deep, soft }: { color: string; deep: string; soft: string }) {
   const body = "M32 2.5 37.2 24.5 58 33.2 58 39.2 37.4 36.4 35.2 50.5 43.5 56.2 43.5 60.4 32 56.4 20.5 60.4 20.5 56.2 28.8 50.5 26.6 36.4 6 39.2 6 33.2 26.8 24.5Z";

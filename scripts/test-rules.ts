@@ -201,12 +201,45 @@ function fresh(count: PlayerCount = 4) {
   assert.equal(state.phase, "move");
   assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 0);
   assert.equal(state.moveSeq, 0);
-  assert.equal(automaticMoveTokenId(state), onlyToken.id);
-  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
+  assert.equal(automaticMoveTokenId(state), null);
+  assert.ok(legalMoves(state).some((move) => move.tokenId === onlyToken.id));
+  state = applyMove(state, onlyToken.id, 1_380);
   assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 6);
   assert.equal(state.moveSeq, 1);
   assert.equal(state.playerStats[player.id].rolls, 1);
   assert.equal(state.playerStats[player.id].sixes, 1);
+}
+
+{
+  let state = fresh();
+  state = applyRoll(state, 6, 0);
+  const moves = legalMoves(state);
+  assert.equal(automaticMoveTokenId(state), moves[0].tokenId);
+  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
+  assert.equal(state.tokens.find((token) => token.id === moves[0].tokenId)?.progress, 0);
+}
+
+{
+  let state = createLocalMatch(
+    2,
+    [
+      { name: "P0", kind: "human" },
+      { name: "P1", kind: "bot" },
+    ],
+    "Rose",
+    1,
+  );
+  const player = state.players[0];
+  const onlyToken = state.tokens.find((token) => token.playerId === player.id)!;
+  state = {
+    ...state,
+    introducedIds: [player.id],
+    tokens: state.tokens.map((token) =>
+      token.id === onlyToken.id ? { ...token, progress: 0 } : token,
+    ),
+  };
+  state = applyRoll(state, 6, 0);
+  assert.equal(automaticMoveTokenId(state), onlyToken.id);
 }
 
 {
@@ -269,7 +302,10 @@ function fresh(count: PlayerCount = 4) {
   state = applyMove(state, legalMoves(state)[0].tokenId, 0);
   state = applyRoll(state, 6, 0);
   assert.equal(state.phase, "move");
-  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
+  assert.equal(automaticMoveTokenId(state), null);
+  const boardMove = legalMoves(state).find((move) => move.from >= 0);
+  assert.ok(boardMove);
+  state = applyMove(state, boardMove!.tokenId, 1_380);
   assert.equal(state.phase, "roll");
   assert.equal(state.consecutiveSixes, 2);
   state = applyRoll(state, 6, 0);
