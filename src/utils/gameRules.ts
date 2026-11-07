@@ -1,5 +1,6 @@
 import type {
   GameState,
+  GameMode,
   Intent,
   LastMove,
   LegalMove,
@@ -19,6 +20,7 @@ import {
   trackLength,
   buildLayout,
 } from "@/utils/boardGeometry";
+import { snakesLegalMoves, SNAKES_GOAL, TRANSPORT_MS } from "@/utils/snakesAndLadders";
 export const DICE_MS = 880;
 export const TURN_LIMIT_MS = 15_000;
 export const HOP_MS = 340;
@@ -62,6 +64,7 @@ export function createLocalMatch(
   seats: SeatSetup[],
   hostName: string,
   tokenCount: TokenCount = DEFAULT_TOKEN_COUNT,
+  gameMode: GameMode = "ludo",
 ): GameState {
   const fallback = seatPlan(count);
   const players: Player[] = seats.slice(0, count).map((seat, index) => ({
@@ -76,7 +79,8 @@ export function createLocalMatch(
     roomId: null,
     hostId: players[0].id,
     maxPlayers: count,
-    tokenCount,
+    gameMode,
+    tokenCount: gameMode === "snakes" ? 1 : tokenCount,
     players,
     status: "playing",
     rollTimerEnabled: true,
@@ -93,6 +97,7 @@ export function createLobby(options: {
   peerId: string | null;
   hostSeat?: number;
   tokenCount?: TokenCount;
+  gameMode?: GameMode;
 }): GameState {
   const choices = seatChoices(options.count);
   const host: Player = {
@@ -107,7 +112,8 @@ export function createLobby(options: {
     roomId: options.roomId,
     hostId: host.id,
     maxPlayers: options.count,
-    tokenCount: options.tokenCount ?? DEFAULT_TOKEN_COUNT,
+    gameMode: options.gameMode ?? "ludo",
+    tokenCount: options.gameMode === "snakes" ? 1 : options.tokenCount ?? DEFAULT_TOKEN_COUNT,
     players: [host],
     status: "lobby",
     rollTimerEnabled: true,
@@ -119,6 +125,7 @@ function baseState(partial: {
   roomId: string | null;
   hostId: string;
   maxPlayers: PlayerCount;
+  gameMode: GameMode;
   tokenCount: TokenCount;
   players: Player[];
   status: GameState["status"];
@@ -127,6 +134,7 @@ function baseState(partial: {
 }): GameState {
   return {
     revision: 1,
+    gameMode: partial.gameMode,
     roomId: partial.roomId,
     hostId: partial.hostId,
     maxPlayers: partial.maxPlayers,
@@ -198,6 +206,7 @@ export function parkedTokenIds(tokens: Token[], playerId: string, count: PlayerC
 export function tokenParked(state: GameState, tokenId: string): boolean {
   const token = state.tokens.find((item) => item.id === tokenId);
   if (!token) return false;
+  if (state.gameMode === "snakes") return token.progress === SNAKES_GOAL;
   return parkedTokenIds(state.tokens, token.playerId, state.maxPlayers).has(tokenId);
 }
 
@@ -210,6 +219,7 @@ function goalProgressFor(tokens: Token[], token: Token, count: PlayerCount): num
 
 export function playerFinished(state: GameState, playerId: string): boolean {
   const mine = state.tokens.filter((token) => token.playerId === playerId);
+  if (state.gameMode === "snakes") return mine.some((token) => token.progress === SNAKES_GOAL);
   return mine.length === state.tokenCount &&
     parkedTokenIds(state.tokens, playerId, state.maxPlayers).size === state.tokenCount;
 }
@@ -239,6 +249,7 @@ export function legalMoves(state: GameState, dice = state.dice): LegalMove[] {
   if (state.status !== "playing" || state.phase !== "move" || dice == null) return [];
   const player = state.players[state.currentPlayerIndex];
   if (!player || playerFinished(state, player.id)) return [];
+  if (state.gameMode === "snakes") return snakesLegalMoves(state, dice);
   const len = trackLength(state.maxPlayers);
   const moves: LegalMove[] = [];
 
@@ -278,6 +289,7 @@ export function legalMoves(state: GameState, dice = state.dice): LegalMove[] {
 export function automaticMoveTokenId(state: GameState): string | null {
   const moves = legalMoves(state);
   if (moves.length === 0) return null;
+  if (state.gameMode === "snakes") return moves[0].tokenId;
 
   const player = state.players[state.currentPlayerIndex];
   if (!player) return null;
@@ -300,7 +312,7 @@ function nextPlayerIndex(state: GameState, from: number, tokens: Token[], rankin
     const player = state.players[index];
     const done =
       rankings.includes(player.id) ||
-      parkedTokenIds(tokens, player.id, state.maxPlayers).size === state.tokenCount;
+      playerFinished({ ...state, tokens }, player.id);
     if (!done) return index;
   }
   return from;
@@ -323,6 +335,15 @@ export function hopDuration(from: number, to: number): number {
   if (to < 0) return HOP_MS + 180;
   if (from < 0) return HOP_MS + 220;
   return Math.max(1, to - from) * HOP_MS + 160;
+}
+
+export function moveHopCount(move: Pick<LastMove, "from" | "to" | "landing">): number {
+  return move.to < 0 || move.from < 0 ? 1 : Math.max(1, (move.landing ?? move.to) - move.from);
+}
+
+export function moveDuration(move: Pick<LastMove, "from" | "to" | "landing">): number {
+  return hopDuration(move.from, move.landing ?? move.to) +
+    (move.landing != null && move.landing !== move.to ? TRANSPORT_MS : 0);
 }
 
 export function applyRoll(state: GameState, value: number, now: number): GameState {
@@ -353,7 +374,7 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
     revision: state.revision + 1,
   };
 
-  if (value === 6 && sixes >= 3) {
+  if (state.gameMode !== "snakes" && value === 6 && sixes >= 3) {
     const next = nextPlayerIndex(state, state.currentPlayerIndex, state.tokens, state.rankings);
     return {
       ...rolled,
@@ -367,11 +388,12 @@ export function applyRoll(state: GameState, value: number, now: number): GameSta
 
   const moves = legalMoves({ ...rolled, phase: "move" }, value);
   if (moves.length === 0) {
-    const next = nextPlayerIndex(state, state.currentPlayerIndex, state.tokens, state.rankings);
+    const bonus = state.gameMode === "snakes" && value === 6;
+    const next = bonus ? state.currentPlayerIndex : nextPlayerIndex(state, state.currentPlayerIndex, state.tokens, state.rankings);
     return {
       ...rolled,
       phase: "roll",
-      consecutiveSixes: 0,
+      consecutiveSixes: bonus ? sixes : 0,
       currentPlayerIndex: next,
       busyUntil: now + DICE_MS + 520,
       rollDeadline: rollClock(state.players, next, now, now + DICE_MS + 520, true, state.rollTimerEnabled),
@@ -425,7 +447,8 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
   const stillPlaying = state.players.filter(
     (item) => !rankings.includes(item.id) && !playerFinished({ ...state, tokens }, item.id),
   );
-  const status: GameState["status"] = stillPlaying.length <= 1 ? "finished" : state.status;
+  const status: GameState["status"] =
+    (state.gameMode === "snakes" ? justFinished : stillPlaying.length <= 1) ? "finished" : state.status;
 
   const bonus = state.dice === 6 && !justFinished && status === "playing";
   const nextIndex = bonus
@@ -438,6 +461,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
     seat: player.seat,
     from: move.from,
     to: move.to,
+    ...(move.landing != null ? { landing: move.landing } : {}),
     capturedIds: move.captures,
   };
   const playerStats = { ...state.playerStats };
@@ -469,7 +493,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
     currentPlayerIndex: status === "finished" ? state.currentPlayerIndex : nextIndex,
     consecutiveSixes: bonus && state.dice === 6 ? state.consecutiveSixes : 0,
     dice: state.dice,
-    busyUntil: now + hopDuration(move.from, move.to) + (move.captures.length ? HOP_MS : 0),
+    busyUntil: now + moveDuration(move) + (move.captures.length ? HOP_MS : 0),
     rollDeadline:
       status === "finished"
         ? 0
@@ -477,7 +501,7 @@ export function applyMove(state: GameState, tokenId: string, now: number): GameS
             state.players,
             nextIndex,
             now,
-            now + hopDuration(move.from, move.to) + (move.captures.length ? HOP_MS : 0),
+            now + moveDuration(move) + (move.captures.length ? HOP_MS : 0),
             true,
             state.rollTimerEnabled,
           ),
@@ -648,8 +672,23 @@ export function convertPeerToBot(state: GameState, peerId: string): GameState {
 }
 
 export function applyIntent(state: GameState, intent: Intent, actorId: string, now: number): GameState | null {
+  if (intent.type === "set-game-mode") {
+    if (actorId !== state.hostId || state.status !== "lobby") return null;
+    if (intent.mode !== "ludo" && intent.mode !== "snakes") return null;
+    if ((state.gameMode ?? "ludo") === intent.mode) return null;
+    const tokenCount = intent.mode === "snakes" ? 1 : DEFAULT_TOKEN_COUNT;
+    return {
+      ...state,
+      revision: state.revision + 1,
+      gameMode: intent.mode,
+      tokenCount,
+      tokens: createTokens(state.players, tokenCount),
+      playerStats: emptyPlayerStats(state.players),
+    };
+  }
   if (intent.type === "set-token-count") {
     if (actorId !== state.hostId || state.status !== "lobby") return null;
+    if (state.gameMode === "snakes") return null;
     if (![1, 2, 3, 4, 5].includes(intent.count) || state.tokenCount === intent.count) return null;
     return {
       ...state,
@@ -815,6 +854,11 @@ function rollIndex(spanCount: number): number {
 }
 
 export function describeMove(state: GameState, token: Token): string {
+  if (state.gameMode === "snakes") {
+    if (token.progress < 0) return "منتظر شش";
+    if (token.progress === SNAKES_GOAL) return "برنده";
+    return `خانه ${token.progress}`;
+  }
   const len = trackLength(state.maxPlayers);
   if (token.progress < 0) return "خروج از خانه";
   if (parkedTokenIds(state.tokens, token.playerId, state.maxPlayers).has(token.id)) return "نشسته";

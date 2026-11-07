@@ -49,7 +49,7 @@ export default function App() {
         error={session.error}
         onDismissError={session.dismissError}
         onLocal={session.startLocal}
-        onCreate={(count, name) => void session.createOnline(count, name)}
+        onCreate={(count, name, gameMode) => void session.createOnline(count, name, gameMode)}
         onJoin={(code, name) => void session.joinOnline(code, name)}
       />
     );

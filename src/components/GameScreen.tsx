@@ -25,6 +25,8 @@ import { faDigits, PLAYER_THEMES, themeFor } from "@/utils/palette";
 import { Dice } from "@/components/Dice";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LudoBoard } from "@/components/LudoBoard";
+import { SnakesBoard } from "@/components/SnakesBoard";
+import { GameModePicker } from "@/components/GameModePicker";
 
 interface GameScreenProps {
   state: GameState;
@@ -46,6 +48,7 @@ interface GameScreenProps {
 
 export function GameScreen(props: GameScreenProps) {
   const { state } = props;
+  const snakes = state.gameMode === "snakes";
   const layout = useMemo(() => buildLayout(state.maxPlayers), [state.maxPlayers]);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -56,6 +59,7 @@ export function GameScreen(props: GameScreenProps) {
     null,
   );
   const [copied, setCopied] = useState(false);
+  const [resultReady, setResultReady] = useState(false);
   const current = activePlayer(state);
   const roller = state.players[state.rollerIndex] ?? current;
   const displayed =
@@ -91,7 +95,14 @@ export function GameScreen(props: GameScreenProps) {
 
   const playing = state.status !== "lobby";
   const showResults =
-    state.status === "finished" && dismissedResultRevision !== state.revision;
+    state.status === "finished" && resultReady && dismissedResultRevision !== state.revision;
+
+  useEffect(() => {
+    setResultReady(false);
+    if (state.status !== "finished") return;
+    const timer = window.setTimeout(() => setResultReady(true), Math.max(0, state.busyUntil - Date.now()) + 500);
+    return () => window.clearTimeout(timer);
+  }, [state.status, state.busyUntil]);
 
   useEffect(() => {
     if (state.status !== "playing") return;
@@ -129,7 +140,7 @@ export function GameScreen(props: GameScreenProps) {
       <header className="game-header relative z-30 flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-[#14324f]/10 px-2 py-2 sm:col-span-2 sm:gap-3 sm:px-3 lg:px-4 lg:py-3">
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg leading-none text-[#14324f] sm:text-xl lg:text-2xl">
-            منچ بازی
+            {snakes ? "مار و پله" : "منچ بازی"}
           </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[#5a7e99]">
             <span className="truncate">
@@ -288,15 +299,26 @@ export function GameScreen(props: GameScreenProps) {
         >
           <div className="board-slot min-h-0 w-full flex-1">
             <div className="board-fit">
-              <LudoBoard
-                layout={layout}
-                tokens={state.tokens}
-                players={state.players}
-                currentSeat={displayed?.seat ?? null}
-                legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
-                lastMove={state.lastMove}
-                onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
-              />
+              {snakes ? (
+                <SnakesBoard
+                  tokens={state.tokens}
+                  players={state.players}
+                  currentSeat={displayed?.seat ?? null}
+                  legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
+                  lastMove={state.lastMove}
+                  onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
+                />
+              ) : (
+                <LudoBoard
+                  layout={layout}
+                  tokens={state.tokens}
+                  players={state.players}
+                  currentSeat={displayed?.seat ?? null}
+                  legalTokenIds={canMove ? moves.map((move) => move.tokenId) : []}
+                  lastMove={state.lastMove}
+                  onToken={(tokenId) => props.onAct({ type: "move", tokenId })}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -354,6 +376,7 @@ export function GameScreen(props: GameScreenProps) {
                     active={displayed?.id === player.id}
                     bot={player.kind === "bot"}
                     place={place(player.id)}
+                    detail={snakes ? snakePosition(state, player.id) : undefined}
                     online={props.online}
                     linked={
                       player.connected &&
@@ -376,7 +399,7 @@ export function GameScreen(props: GameScreenProps) {
         </aside>
       </div>
 
-      {rulesOpen ? <Rules onClose={() => setRulesOpen(false)} /> : null}
+      {rulesOpen ? <Rules state={state} onClose={() => setRulesOpen(false)} /> : null}
       {reportOpen ? (
         <LiveReport state={state} onClose={() => setReportOpen(false)} />
       ) : null}
@@ -404,10 +427,20 @@ function orderedResults(state: GameState) {
     .map((id) => state.players.find((player) => player.id === id))
     .filter((player): player is GameState["players"][number] => Boolean(player));
   const rankedIds = new Set(rankedPlayers.map((player) => player.id));
-  return [
-    ...rankedPlayers,
-    ...state.players.filter((player) => !rankedIds.has(player.id)),
-  ];
+  const rest = state.players.filter((player) => !rankedIds.has(player.id));
+  if (state.gameMode === "snakes") {
+    rest.sort((a, b) => snakeProgress(state, b.id) - snakeProgress(state, a.id));
+  }
+  return [...rankedPlayers, ...rest];
+}
+
+function snakeProgress(state: GameState, playerId: string): number {
+  return state.tokens.find((token) => token.playerId === playerId)?.progress ?? -1;
+}
+
+function snakePosition(state: GameState, playerId: string): string {
+  const progress = snakeProgress(state, playerId);
+  return progress < 0 ? "منتظر شش" : `خانهٔ ${faDigits(progress)}`;
 }
 
 function GameResults({ state, onClose }: { state: GameState; onClose: () => void }) {
@@ -469,7 +502,7 @@ function GameResults({ state, onClose }: { state: GameState; onClose: () => void
                     index === 0 ? "text-amber-700" : "text-[#66829a]"
                   }`}
                 >
-                  {index === 0 ? "قهرمان 🏆" : `نفر ${faDigits(index + 1)}`}
+                  {index === 0 ? "قهرمان 🏆" : state.gameMode === "snakes" ? snakePosition(state, player.id) : `نفر ${faDigits(index + 1)}`}
                 </span>
               </li>
             );
@@ -607,7 +640,7 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
   return (
     <div>
       <h2 className="font-display text-3xl text-[#14324f]">
-        {state.roomId ?? "منچ بازی"}
+        {state.roomId ?? (state.gameMode === "snakes" ? "مار و پله" : "منچ بازی")}
       </h2>
       <section className="mt-4 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-lg shadow-slate-900/5 dark:border-white/10 dark:bg-slate-900/85 dark:shadow-black/20">
         <div className="flex items-center gap-3 border-b border-slate-200/70 bg-gradient-to-l from-sky-50 to-white px-4 py-3 dark:border-white/10 dark:from-slate-800 dark:to-slate-900">
@@ -634,6 +667,13 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
         </div>
 
         <div className="space-y-4 p-3">
+          <GameModePicker value={state.gameMode ?? "ludo"} disabled={!isHost}
+            onChange={(mode) => onAct({ type: "set-game-mode", mode })} />
+          {state.gameMode === "snakes" ? (
+            <p className="rounded-2xl bg-[#eef6fb] px-3 py-2 text-xs leading-6 text-[#24506f]">
+              هر بازیکن یک مهره دارد. ورود با شش؛ اولین نفر در خانهٔ ۱۰۰ برنده است.
+            </p>
+          ) : (
           <div>
             <div className="mb-2 flex items-center gap-2 px-1">
               <Settings2 size={15} className="text-slate-500 dark:text-slate-400" />
@@ -657,6 +697,7 @@ function LobbyPanel({ state, isHost, online, onAct }: GameScreenProps) {
               ))}
             </div>
           </div>
+          )}
 
           <div className="rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 dark:border-white/10 dark:bg-white/[0.03]">
             <div className="flex items-center gap-3">
@@ -818,7 +859,9 @@ function ArriveNote({ state }: { state: GameState }) {
   const player = state.players.find((item) => item.seat === move.seat);
   const theme = themeFor(move.seat);
   const finished = player ? playerFinished(state, player.id) : false;
-  const text = finished
+  const text = state.gameMode === "snakes"
+    ? `${player?.name ?? "بازیکن"} به خانهٔ ۱۰۰ رسید و برنده شد!`
+    : finished
     ? `${player?.name ?? "بازیکن"} هر ${faDigits(state.tokenCount)} مهره را در خانه‌های رنگی نشاند.`
     : `${player?.name ?? "بازیکن"} یک مهره را در خانه رنگی نشاند.`;
   return (
@@ -933,6 +976,7 @@ function SeatCard({
   place,
   online,
   linked,
+  detail,
 }: {
   name: string;
   className?: string;
@@ -942,6 +986,7 @@ function SeatCard({
   place: number | null;
   online: boolean;
   linked: boolean;
+  detail?: string;
 }) {
   const theme = themeFor(seat);
   return (
@@ -958,6 +1003,7 @@ function SeatCard({
       </span>
       {online && !bot ? <LinkDot on={linked} /> : null}
       {bot && !place ? <Bot size={14} className="shrink-0 text-[#7f9aaf]" /> : null}
+      {detail && !place ? <span className="shrink-0 text-[10px] font-bold text-[#5a7e99]">{detail}</span> : null}
       {place ? (
         <span
           className={`shrink-0 text-xs font-bold ${place === 1 ? "text-amber-600" : "text-[#5a7e99]"}`}
@@ -969,9 +1015,17 @@ function SeatCard({
   );
 }
 
-function Rules({ onClose }: { onClose: () => void }) {
-  const rules = [
-    "هر بازیکن پنج مهره دارد؛ هدف این است که همهٔ مهره‌ها را به خانه‌های رنگی خودت برسانی.",
+function Rules({ state, onClose }: { state: GameState; onClose: () => void }) {
+  const snakes = state.gameMode === "snakes";
+  const rules = snakes ? [
+    "هر بازیکن یک مهره دارد. اولین نفری که به خانهٔ ۱۰۰ برسد برنده است و بازی تمام می‌شود.",
+    "برای ورود باید ۶ بیاوری؛ با اولین شش وارد خانهٔ ۱ می‌شوی و یک نوبت جایزه می‌گیری.",
+    "بعد از ورود، مهره به‌اندازهٔ تاس حرکت می‌کند. با هر شش یک نوبت جایزه داری.",
+    "اگر روی ابتدای نردبان بایستی، بالا می‌روی؛ اگر روی سر مار بایستی، تا دم آن پایین می‌آیی.",
+    "اگر در پایان حرکت روی خانهٔ مهرهٔ حریف بایستی، مهرهٔ او از بازی بیرون می‌رود و برای ورود دوباره باید شش بیاورد. زدن مهره بعد از جابه‌جایی مار یا نردبان هم حساب می‌شود.",
+    "برای رسیدن به خانهٔ ۱۰۰ باید تاس دقیق بیاوری؛ اگر عدد بیشتر باشد، مهره حرکت نمی‌کند.",
+  ] : [
+    `هر بازیکن ${faDigits(state.tokenCount)} مهره دارد؛ هدف این است که همهٔ مهره‌ها را به خانه‌های رنگی خودت برسانی.`,
     "برای وارد کردن مهره به بازی باید ۶ بیاوری. بعد از آن، مهره‌ها را به‌اندازهٔ عدد تاس حرکت بده.",
     "برای رساندن مهره به خانهٔ پایانی، باید عدد تاس دقیق باشد.",
     "اگر روی خانهٔ مهرهٔ حریف بنشینی، مهرهٔ او به خانهٔ شروع برمی‌گردد.",
@@ -997,7 +1051,7 @@ function Rules({ onClose }: { onClose: () => void }) {
             id="game-rules-title"
             className="font-display text-2xl font-extrabold text-[#14324f] sm:text-3xl"
           >
-            قوانین بازی منچ
+            قوانین بازی {snakes ? "مار و پله" : "منچ"}
           </h2>
           <p className="mt-1 text-sm text-[#668197]">
             قوانین را مرور کن و برای بازی آماده شو
