@@ -3,7 +3,6 @@ import { buildLayout, finishProgress, homeLength, minCenterDistance, seatOrder, 
 import {
   addBot,
   addHuman,
-  automaticMoveTokenId,
   applyIntent,
   applyMove,
   applyRoll,
@@ -201,7 +200,6 @@ function fresh(count: PlayerCount = 4) {
   assert.equal(state.phase, "move");
   assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 0);
   assert.equal(state.moveSeq, 0);
-  assert.equal(automaticMoveTokenId(state), null);
   assert.ok(legalMoves(state).some((move) => move.tokenId === onlyToken.id));
   state = applyMove(state, onlyToken.id, 1_380);
   assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 6);
@@ -214,8 +212,9 @@ function fresh(count: PlayerCount = 4) {
   let state = fresh();
   state = applyRoll(state, 6, 0);
   const moves = legalMoves(state);
-  assert.equal(automaticMoveTokenId(state), moves[0].tokenId);
-  state = applyMove(state, automaticMoveTokenId(state)!, 1_380);
+  assert.ok(moves.length > 1);
+  assert.equal(state.tokens.find((token) => token.id === moves[0].tokenId)?.progress, -1);
+  state = applyMove(state, moves[0].tokenId, 1_380);
   assert.equal(state.tokens.find((token) => token.id === moves[0].tokenId)?.progress, 0);
 }
 
@@ -239,7 +238,8 @@ function fresh(count: PlayerCount = 4) {
     ),
   };
   state = applyRoll(state, 6, 0);
-  assert.equal(automaticMoveTokenId(state), onlyToken.id);
+  assert.equal(legalMoves(state).length, 1);
+  assert.equal(state.tokens.find((token) => token.id === onlyToken.id)?.progress, 0);
 }
 
 {
@@ -302,7 +302,6 @@ function fresh(count: PlayerCount = 4) {
   state = applyMove(state, legalMoves(state)[0].tokenId, 0);
   state = applyRoll(state, 6, 0);
   assert.equal(state.phase, "move");
-  assert.equal(automaticMoveTokenId(state), null);
   const boardMove = legalMoves(state).find((move) => move.from >= 0);
   assert.ok(boardMove);
   state = applyMove(state, boardMove!.tokenId, 1_380);

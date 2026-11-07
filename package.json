@@ -8,9 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "start": "vite preview",
     "lint": "eslint .",
-    "test:rules": "tsx scripts/test-rules.ts",
-    "test:snakes": "tsx scripts/test-snakes.ts",
-    "test:ui": "playwright test"
+    "test:mench": "tsx scripts/test-mench.ts",
+    "test:snakes": "tsx scripts/test-snakes.ts"
   },
   "dependencies": {
     "@fontsource-variable/vazirmatn": "^5.2.6",

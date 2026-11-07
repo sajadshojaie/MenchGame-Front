@@ -564,6 +564,24 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
     (sum, player) => sum + (state.playerStats[player.id]?.sixes ?? 0),
     0,
   );
+  const captureGroups = state.players
+    .map((attacker) => {
+      const victims = state.players
+        .filter((victim) => victim.id !== attacker.id)
+        .map((victim) => ({
+          player: victim,
+          count: state.playerStats[attacker.id]?.captures[victim.id] ?? 0,
+        }))
+        .filter((entry) => entry.count > 0)
+        .sort((a, b) => b.count - a.count);
+      return {
+        player: attacker,
+        victims,
+        total: victims.reduce((sum, victim) => sum + victim.count, 0),
+      };
+    })
+    .filter((group) => group.total > 0)
+    .sort((a, b) => b.total - a.total);
 
   return (
     <div
@@ -628,52 +646,63 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
         </section>
 
         <section className="mt-6">
-          <div className="overflow-x-auto rounded-2xl bg-white/80">
-            <table className="w-full border-collapse text-center text-xs">
-              <thead>
-                <tr className="border-b border-slate-200 text-right dark:border-white/10">
-                  <th className="px-3 py-2">بازیکن زننده</th>
-                  <th className="px-3 py-2">بازیکنی که مهره‌اش زده شده</th>
-                  <th className="px-3 py-2 text-center">تعداد</th>
-                </tr>
-              </thead>
-              <tbody>
-                {state.players.flatMap((attacker) =>
-                  state.players.flatMap((victim) => {
-                    if (attacker.id === victim.id) return [];
-                    const captures =
-                      state.playerStats[attacker.id]?.captures[victim.id] ?? 0;
-                    if (captures === 0) return [];
-                    return [
-                      <tr
-                        key={`${attacker.id}-${victim.id}`}
-                        className="border-b border-slate-100 last:border-0 dark:border-white/10"
-                      >
-                        <td className="px-3 py-2 text-right font-bold">
-                          {attacker.name}
-                        </td>
-                        <td className="px-3 py-2 text-right">{victim.name}</td>
-                        <td className="px-3 py-2">{faDigits(captures)}</td>
-                      </tr>,
-                    ];
-                  }),
-                )}
-                {!state.players.some((attacker) =>
-                  state.players.some(
-                    (victim) =>
-                      attacker.id !== victim.id &&
-                      (state.playerStats[attacker.id]?.captures[victim.id] ?? 0) > 0,
-                  ),
-                ) ? (
-                  <tr>
-                    <td colSpan={3} className="px-3 py-4 text-center text-slate-500">
-                      هنوز مهره‌ای زده نشده است.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h3 className="font-display text-lg font-extrabold">آمار زدن مهره‌ها</h3>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+              مجموع:{" "}
+              {faDigits(captureGroups.reduce((sum, group) => sum + group.total, 0))}
+            </span>
           </div>
+          {captureGroups.length ? (
+            <div className="space-y-2">
+              {captureGroups.map(({ player, victims, total }) => {
+                const theme = themeFor(player.seat);
+                return (
+                  <article
+                    key={player.id}
+                    className="rounded-2xl border border-slate-200/80 bg-white/80 p-3 dark:border-white/10 dark:bg-slate-800/70"
+                  >
+                    <div className="mb-2 flex items-center gap-2">
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-full"
+                        style={{ background: theme.hex }}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-extrabold">
+                        {player.name}
+                      </span>
+                      <span className="shrink-0 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-extrabold text-rose-700 dark:bg-rose-400/15 dark:text-rose-300">
+                        {faDigits(total)} مهره زده
+                      </span>
+                    </div>
+                    <ul className="flex flex-wrap gap-2">
+                      {victims.map(({ player: victim, count }) => {
+                        const victimTheme = themeFor(victim.seat);
+                        return (
+                          <li
+                            key={victim.id}
+                            className="inline-flex max-w-full items-center gap-1.5 rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs dark:bg-slate-700/80"
+                          >
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ background: victimTheme.hex }}
+                            />
+                            <span className="max-w-32 truncate">{victim.name}</span>
+                            <span className="font-extrabold text-rose-700 dark:text-rose-300">
+                              ×{faDigits(count)}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-2xl bg-white/80 px-3 py-4 text-center text-sm text-slate-500 dark:bg-slate-800/70 dark:text-slate-400">
+              هنوز مهره‌ای زده نشده است.
+            </p>
+          )}
         </section>
       </section>
     </div>
