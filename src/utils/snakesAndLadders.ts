@@ -22,7 +22,7 @@ export function snakesPoint(square: number): Point {
 }
 
 export function waitingPoint(seat: number): Point {
-  return { x: 85 + seat * 166, y: 974 };
+  return { x: 85 + seat * 166, y: 966 };
 }
 
 /** The same curve drives the snake artwork and the token sliding down it. */
@@ -56,5 +56,8 @@ export function snakesLegalMoves(state: GameState, dice: number): LegalMove[] {
   const landing = token.progress < 0 ? 1 : token.progress + dice;
   if (landing > SNAKES_GOAL) return [];
   const to = transports.get(landing) ?? landing;
-  return [{ tokenId: token.id, from: token.progress, landing, to, captures: [], finishes: to === SNAKES_GOAL }];
+  const captures = state.tokens
+    .filter((other) => other.playerId !== player.id && other.progress === to)
+    .map((other) => other.id);
+  return [{ tokenId: token.id, from: token.progress, landing, to, captures, finishes: to === SNAKES_GOAL }];
 }

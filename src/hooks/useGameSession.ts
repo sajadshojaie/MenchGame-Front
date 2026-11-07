@@ -197,7 +197,7 @@ export function useGameSession(): SessionController {
       const hops = moveHopCount(move);
       for (let i = 0; i < hops; i++) window.setTimeout(() => audio?.step(), i * HOP_MS);
       if (move.capturedIds.length)
-        window.setTimeout(() => audio?.capture(), hops * HOP_MS);
+        window.setTimeout(() => audio?.capture(), current.gameMode === "snakes" ? moveDuration(move) : hops * HOP_MS);
       if (tokenParked(current, move.tokenId)) {
         window.setTimeout(() => audio?.arrive(), moveDuration(move));
       }
@@ -235,6 +235,7 @@ export function useGameSession(): SessionController {
         ms = Math.max(ms, moveDuration(state.lastMove) + extra);
       }
     }
+    ms = Math.max(ms, state.busyUntil - Date.now());
     if (!ms) return;
     setInputLocked(true);
     setDiceRolling(rolled);
@@ -244,9 +245,9 @@ export function useGameSession(): SessionController {
       window.clearTimeout(diceTimer);
       window.clearTimeout(lockTimer);
     };
-    // Only a new roll or a new move should restart the animation lock.
+    // Match start and synchronized busy periods must also lock the controls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.rollId, state?.moveSeq]);
+  }, [state?.rollId, state?.moveSeq, state?.busyUntil]);
 
   const hostApply = useCallback(
     (intent: Intent, actorId: string) => {

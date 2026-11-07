@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import tseslint from "typescript-eslint";
 
 const eslintConfig = defineConfig([
-  globalIgnores([".next/**", "dist/**", "node_modules/**"]),
+  globalIgnores([".next/**", "dist/**", "node_modules/**", "test-results/**", "playwright-report/**"]),
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

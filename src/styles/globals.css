@@ -108,17 +108,60 @@ html.dark body {
 }
 
 .snakes-board {
+  --snakes-surface: #fdf5df;
+  --snakes-cell-1: #dceff5;
+  --snakes-cell-2: #fae4d5;
+  --snakes-cell-3: #fbefc8;
+  --snakes-cell-4: #dfefdf;
+  --snakes-cell-5: #ebe2f3;
+  --snakes-grid: #fff9e9;
+  --snakes-ink: #40576a;
+  --snakes-number-outline: #fffdf5;
+  --snakes-edge: #fff7dd;
+  --snakes-star: #a56d1b;
+  --snakes-token-base: #fffdf6;
+  --snakes-token-base-shade: #e4eaf0;
+  --snakes-token-edge: #fffdf6;
   background: linear-gradient(160deg, #b87939, #684125 70%, #432b20);
 }
 
+html.dark .snakes-board {
+  --snakes-surface: #172630;
+  --snakes-cell-1: #234351;
+  --snakes-cell-2: #4b3835;
+  --snakes-cell-3: #4a432b;
+  --snakes-cell-4: #29453b;
+  --snakes-cell-5: #3d3651;
+  --snakes-grid: #4b5b66;
+  --snakes-ink: #dce8f0;
+  --snakes-number-outline: #192935;
+  --snakes-edge: #556772;
+  --snakes-star: #f1cc7d;
+  --snakes-token-base: #c8d6e2;
+  --snakes-token-base-shade: #a3b6c5;
+  --snakes-token-edge: #e1eaf0;
+  background: linear-gradient(160deg, #6a5138, #3c3028 70%, #2d2623);
+}
+
 .snakes-token {
-  width: 4.8%;
-  height: 5.4%;
-  filter: drop-shadow(0 2px 2px rgba(12, 30, 40, 0.4));
+  width: 6%;
+  height: 6.8%;
+  filter: drop-shadow(0 3px 2px rgba(12, 30, 40, 0.55));
+}
+
+.snakes-token .token-ring {
+  inset: -8%;
+  border-color: #17344f;
+  box-shadow: 0 0 0 3px #fffdf6, 0 0 0 6px rgba(255, 232, 153, 0.65);
 }
 
 .snakes-token-active svg {
   filter: drop-shadow(0 0 3px #fff3b0);
+}
+
+html.dark .snakes-token .token-ring {
+  border-color: #efc767;
+  box-shadow: 0 0 0 3px #172630, 0 0 0 6px rgba(239, 199, 103, 0.3);
 }
 
 .snakes-token:focus-visible {
@@ -518,8 +561,19 @@ html.dark [class*="ring-white"] {
 }
 
 html.dark [aria-labelledby="game-results-title"] > section,
-html.dark [aria-labelledby="game-rules-title"] > div {
+html.dark [aria-labelledby="live-report-title"] > section,
+html.dark [aria-labelledby="game-rules-title"] {
   background-image: linear-gradient(180deg, #2c3d4c, #34495a);
+  border-color: rgba(211, 226, 238, 0.15);
+}
+
+html.dark [aria-labelledby="live-report-title"] .text-slate-500 {
+  color: #b7c9d8;
+}
+
+html.dark [class~="bg-[#fff7d9]"] {
+  background-color: #51452e;
+  border-color: #8e7748;
 }
 
 html.dark [class*="bg-[#d9e7ee]"] {

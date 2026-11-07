@@ -361,7 +361,6 @@ export function GameScreen(props: GameScreenProps) {
                   />
                 </div>
               </div>
-              {snakes ? <SnakesMoveNote state={state} /> : null}
               {state.lastMove && tokenParked(state, state.lastMove.tokenId) ? (
                 <div className="lg:order-1">
                   <ArriveNote state={state} />
@@ -442,25 +441,6 @@ function snakeProgress(state: GameState, playerId: string): number {
 function snakePosition(state: GameState, playerId: string): string {
   const progress = snakeProgress(state, playerId);
   return progress < 0 ? "منتظر شش" : `خانهٔ ${faDigits(progress)}`;
-}
-
-function SnakesMoveNote({ state }: { state: GameState }) {
-  const current = activePlayer(state);
-  const waiting = current && snakeProgress(state, current.id) < 0;
-  const move = state.lastMove;
-  const player = move ? state.players.find((item) => item.seat === move.seat) : null;
-  const landing = move?.landing;
-  return (
-    <p className="text-center text-xs leading-6 text-[#5a7e99] lg:order-1" aria-live="polite">
-      {move && landing != null && landing !== move.to ? (
-        <span className="block font-bold">
-          {player?.name} {move.to > landing ? "از نردبان بالا رفت" : "با مار پایین آمد"}:
-          {" "}{faDigits(landing)} ← {faDigits(move.to)}
-        </span>
-      ) : null}
-      {state.status === "playing" ? (waiting ? "برای ورود به خانهٔ ۱ باید شش بیاوری." : "اولین نفر در خانهٔ ۱۰۰ برنده است؛ تاس آخر باید دقیق باشد.") : null}
-    </p>
-  );
 }
 
 function GameResults({ state, onClose }: { state: GameState; onClose: () => void }) {
@@ -601,19 +581,6 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
           </div>
         </section>
 
-        {state.gameMode === "snakes" ? (
-          <section className="mt-6">
-            <h3 className="mb-3 text-sm font-extrabold">موقعیت مهره‌ها</h3>
-            <div className="space-y-2">
-              {orderedResults(state).map((player) => (
-                <div key={player.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm">
-                  <span className="font-bold">{player.name}</span>
-                  <span>{snakePosition(state, player.id)}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        ) : (
         <section className="mt-6">
           <div className="overflow-x-auto rounded-2xl bg-white/80">
             <table className="w-full border-collapse text-center text-xs">
@@ -662,7 +629,6 @@ function LiveReport({ state, onClose }: { state: GameState; onClose: () => void 
             </table>
           </div>
         </section>
-        )}
       </section>
     </div>
   );
@@ -1056,7 +1022,7 @@ function Rules({ state, onClose }: { state: GameState; onClose: () => void }) {
     "برای ورود باید ۶ بیاوری؛ با اولین شش وارد خانهٔ ۱ می‌شوی و یک نوبت جایزه می‌گیری.",
     "بعد از ورود، مهره به‌اندازهٔ تاس حرکت می‌کند. با هر شش یک نوبت جایزه داری.",
     "اگر روی ابتدای نردبان بایستی، بالا می‌روی؛ اگر روی سر مار بایستی، تا دم آن پایین می‌آیی.",
-    "مهره‌ها می‌توانند در یک خانه باشند و همدیگر را نمی‌زنند.",
+    "اگر در پایان حرکت روی خانهٔ مهرهٔ حریف بایستی، مهرهٔ او از بازی بیرون می‌رود و برای ورود دوباره باید شش بیاورد. زدن مهره بعد از جابه‌جایی مار یا نردبان هم حساب می‌شود.",
     "برای رسیدن به خانهٔ ۱۰۰ باید تاس دقیق بیاوری؛ اگر عدد بیشتر باشد، مهره حرکت نمی‌کند.",
   ] : [
     `هر بازیکن ${faDigits(state.tokenCount)} مهره دارد؛ هدف این است که همهٔ مهره‌ها را به خانه‌های رنگی خودت برسانی.`,
