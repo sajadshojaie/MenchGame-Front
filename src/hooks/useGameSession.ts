@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { GameState, Intent, PlayerCount, SeatSetup } from "@/types/game";
+import type { GameMode, GameState, Intent, PlayerCount, SeatSetup } from "@/types/game";
 import { chooseBotMove } from "@/utils/bot";
 import { createSoundboard, type Soundboard } from "@/utils/audio";
 import {
@@ -13,7 +13,8 @@ import {
   findReturningPlayer,
   createLobby,
   createLocalMatch,
-  hopDuration,
+  moveDuration,
+  moveHopCount,
   automaticMoveTokenId,
   tokenParked,
   legalMoves,
@@ -79,8 +80,8 @@ export interface SessionController {
   inputLocked: boolean;
   offlinePeerIds: string[];
   reconnecting: boolean;
-  startLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
-  createOnline: (count: PlayerCount, name: string) => Promise<void>;
+  startLocal: (count: PlayerCount, seats: SeatSetup[], name: string, gameMode: GameMode) => void;
+  createOnline: (count: PlayerCount, name: string, gameMode: GameMode) => Promise<void>;
   joinOnline: (code: string, name: string) => Promise<void>;
   act: (intent: Intent) => void;
   reconnect: () => Promise<void>;
@@ -193,12 +194,12 @@ export function useGameSession(): SessionController {
     if (current.lastMove && current.lastMove.id !== seenMove.current) {
       const move = current.lastMove;
       seenMove.current = move.id;
-      const hops = move.to < 0 ? 1 : move.from < 0 ? 1 : Math.max(1, move.to - move.from);
+      const hops = moveHopCount(move);
       for (let i = 0; i < hops; i++) window.setTimeout(() => audio?.step(), i * HOP_MS);
       if (move.capturedIds.length)
         window.setTimeout(() => audio?.capture(), hops * HOP_MS);
       if (tokenParked(current, move.tokenId)) {
-        window.setTimeout(() => audio?.arrive(), hopDuration(move.from, move.to));
+        window.setTimeout(() => audio?.arrive(), moveDuration(move));
       }
     }
     if (current.status === "finished") {
@@ -206,7 +207,7 @@ export function useGameSession(): SessionController {
         winPlayed.current = true;
         const wait =
           current.lastMove && tokenParked(current, current.lastMove.tokenId)
-            ? hopDuration(current.lastMove.from, current.lastMove.to) + 700
+            ? moveDuration(current.lastMove) + 700
             : 0;
         window.setTimeout(() => audio?.win(), wait);
       }
@@ -231,7 +232,7 @@ export function useGameSession(): SessionController {
       animRef.current.moveSeq = state.moveSeq;
       if (state.lastMove) {
         const extra = state.lastMove.capturedIds.length ? HOP_MS : 0;
-        ms = Math.max(ms, hopDuration(state.lastMove.from, state.lastMove.to) + extra);
+        ms = Math.max(ms, moveDuration(state.lastMove) + extra);
       }
     }
     if (!ms) return;
@@ -257,6 +258,7 @@ export function useGameSession(): SessionController {
       if (
         intent.type === "set-roll-timer" ||
         intent.type === "set-token-count" ||
+        intent.type === "set-game-mode" ||
         intent.type === "set-player-seat" ||
         intent.type === "remove-player"
       ) {
@@ -273,7 +275,7 @@ export function useGameSession(): SessionController {
     const tokenId = automaticMoveTokenId(state);
     if (!tokenId) return;
     const player = state.players[state.currentPlayerIndex];
-    if (!player) return;
+    if (!player || player.kind !== "bot") return;
 
     const wait = Math.max(0, state.busyUntil - Date.now()) + 500;
     const timer = window.setTimeout(() => {
@@ -588,10 +590,10 @@ export function useGameSession(): SessionController {
   leaveRef.current = leave;
 
   const startLocal = useCallback(
-    (count: PlayerCount, seats: SeatSetup[], name: string) => {
+    (count: PlayerCount, seats: SeatSetup[], name: string, gameMode: GameMode) => {
       leave();
       hostRef.current = true;
-      const next = createLocalMatch(count, seats, name);
+      const next = createLocalMatch(count, seats, name, undefined, gameMode);
       myIdRef.current = next.hostId;
       setMyId(next.hostId);
       setIsHost(true);
@@ -603,7 +605,7 @@ export function useGameSession(): SessionController {
   );
 
   const createOnline = useCallback(
-    async (count: PlayerCount, name: string) => {
+    async (count: PlayerCount, name: string, gameMode: GameMode) => {
       setError(null);
       setWaiting(true);
       setOnline(true);
@@ -618,6 +620,7 @@ export function useGameSession(): SessionController {
           setIsHost(true);
           setMyId(connection.selfId);
           const next = createLobby({
+            gameMode,
             roomId: code,
             hostId: connection.selfId,
             hostName: name,

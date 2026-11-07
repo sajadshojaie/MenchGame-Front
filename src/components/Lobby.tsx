@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Dices, Link2, Users } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import type { PlayerCount, SeatSetup } from "@/types/game";
+import type { GameMode, PlayerCount, SeatSetup } from "@/types/game";
 import {
   DEFAULT_TOKEN_COUNT,
   buildLayout,
@@ -10,14 +10,16 @@ import {
 } from "@/utils/boardGeometry";
 import { faDigits, PLAYER_THEMES, themeFor } from "@/utils/palette";
 import { LudoBoard } from "@/components/LudoBoard";
+import { SnakesBoard } from "@/components/SnakesBoard";
+import { GameModePicker } from "@/components/GameModePicker";
 
 interface LobbyProps {
   initialRoom?: string;
   busy?: boolean;
   error?: string | null;
   onDismissError?: () => void;
-  onLocal: (count: PlayerCount, seats: SeatSetup[], name: string) => void;
-  onCreate: (count: PlayerCount, name: string) => void;
+  onLocal: (count: PlayerCount, seats: SeatSetup[], name: string, gameMode: GameMode) => void;
+  onCreate: (count: PlayerCount, name: string, gameMode: GameMode) => void;
   onJoin: (code: string, name: string) => void;
 }
 
@@ -35,6 +37,7 @@ export function Lobby({
   onJoin,
 }: LobbyProps) {
   const [count, setCount] = useState<PlayerCount>(4);
+  const [gameMode, setGameMode] = useState<GameMode>("ludo");
   const [name, setName] = useState("");
   const [mySeat, setMySeat] = useState(0);
 
@@ -77,7 +80,7 @@ export function Lobby({
   const previewTokens = useMemo(
     () =>
       plan.flatMap((seat) =>
-        Array.from({ length: DEFAULT_TOKEN_COUNT }, (_, index) => ({
+        Array.from({ length: gameMode === "snakes" ? 1 : DEFAULT_TOKEN_COUNT }, (_, index) => ({
           id: `preview-${seat}-${index}`,
           playerId: PLAYER_THEMES[seat].id,
           seat,
@@ -85,7 +88,7 @@ export function Lobby({
           progress: -1,
         })),
       ),
-    [plan],
+    [plan, gameMode],
   );
   const previewPlayers = plan.map((seat, index) => {
     const theme = PLAYER_THEMES[seat];
@@ -105,19 +108,17 @@ export function Lobby({
   });
 
   const trimmed = name.trim();
+  const preview = gameMode === "snakes" ? (
+    <SnakesBoard tokens={previewTokens} players={previewPlayers} currentSeat={activeSeat} legalTokenIds={[]} lastMove={null} />
+  ) : (
+    <LudoBoard layout={layout} tokens={previewTokens} players={previewPlayers} currentSeat={activeSeat} legalTokenIds={[]} lastMove={null} />
+  );
 
   return (
     <div className="flex min-h-dvh w-full items-center justify-center gap-10 px-4 py-6 lg:items-stretch lg:justify-start lg:gap-0 lg:px-0 lg:py-0">
       <div className="hidden min-w-0 flex-1 lg:flex lg:items-center lg:justify-center lg:p-8">
         <div className="w-full max-w-[720px]">
-          <LudoBoard
-            layout={layout}
-            tokens={previewTokens}
-            players={previewPlayers}
-            currentSeat={0}
-            legalTokenIds={[]}
-            lastMove={null}
-          />
+          {preview}
         </div>
       </div>
 
@@ -130,7 +131,7 @@ export function Lobby({
               بازی اصیل ایرانی
             </p>
             <h1 className="mt-1 font-display text-4xl leading-none text-[#14324f]">
-              منچ بازی
+              {gameMode === "snakes" ? "مار و پله" : "منچ بازی"}
             </h1>
           </div>
           <ThemeToggle />
@@ -159,6 +160,14 @@ export function Lobby({
             <Dices size={16} /> آفلاین
           </button>
         </div>
+
+        {!joinWide ? (
+          <div className="relative mt-4">
+            <GameModePicker value={gameMode} disabled={busy} onChange={setGameMode} />
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-[#5a7e99]">نوع بازی را میزبان اتاق انتخاب می‌کند.</p>
+        )}
 
         <input
           className="field mt-5"
@@ -275,6 +284,7 @@ export function Lobby({
                     seat: boardSeat,
                   })),
                   trimmed,
+                  gameMode,
                 )
               }
             >
@@ -325,7 +335,7 @@ export function Lobby({
                   type="button"
                   className="btn-primary mt-4 w-full"
                   disabled={busy || !trimmed}
-                  onClick={() => onCreate(count, trimmed)}
+                  onClick={() => onCreate(count, trimmed, gameMode)}
                 >
                   ساخت اتاق
                 </button>
@@ -364,14 +374,7 @@ export function Lobby({
         ) : null}
 
         <div className="mx-auto mt-6 w-full max-w-sm lg:hidden">
-          <LudoBoard
-            layout={layout}
-            tokens={previewTokens}
-            players={previewPlayers}
-            currentSeat={0}
-            legalTokenIds={[]}
-            lastMove={null}
-          />
+          {preview}
         </div>
       </section>
     </div>

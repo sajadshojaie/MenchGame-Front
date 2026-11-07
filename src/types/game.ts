@@ -1,5 +1,6 @@
 export type PlayerCount = 2 | 3 | 4 | 5 | 6;
 export type TokenCount = 1 | 2 | 3 | 4 | 5;
+export type GameMode = "ludo" | "snakes";
 
 export type MatchStatus = "lobby" | "playing" | "finished";
 
@@ -18,13 +19,14 @@ export interface Token {
   id: string;
   playerId: string;
   seat: number;
-  /** 0–3, also the yard slot. */
+  /** Also the yard slot. */
   index: number;
   /**
    * -1 yard
    * 0 .. trackLength-1 shared track (0 is this seat's start)
    * trackLength .. trackLength+homeLength-1 colored home lane.
    * A token is finished when it parks in that lane, from the last house backward.
+   * In snakes mode: -1 waiting, 1 .. 100 board squares.
    */
   progress: number;
 }
@@ -35,6 +37,8 @@ export interface LastMove {
   seat: number;
   from: number;
   to: number;
+  /** Square reached by the die, before a snake or ladder transports the token. */
+  landing?: number;
   capturedIds: string[];
 }
 
@@ -46,6 +50,7 @@ export interface PlayerStats {
 
 export interface GameState {
   revision: number;
+  gameMode: GameMode;
   roomId: string | null;
   hostId: string;
   maxPlayers: PlayerCount;
@@ -89,6 +94,7 @@ export type Intent =
   | { type: "rematch" }
   | { type: "set-roll-timer"; enabled: boolean }
   | { type: "set-token-count"; count: TokenCount }
+  | { type: "set-game-mode"; mode: GameMode }
   | { type: "set-player-seat"; playerId: string; seat: number }
   | { type: "remove-player"; playerId: string };
 
@@ -96,6 +102,7 @@ export interface LegalMove {
   tokenId: string;
   from: number;
   to: number;
+  landing?: number;
   captures: string[];
   finishes: boolean;
 }

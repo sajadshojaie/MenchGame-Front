@@ -107,6 +107,26 @@ html.dark body {
   letter-spacing: 0.01em;
 }
 
+.snakes-board {
+  background: linear-gradient(160deg, #b87939, #684125 70%, #432b20);
+}
+
+.snakes-token {
+  width: 4.8%;
+  height: 5.4%;
+  filter: drop-shadow(0 2px 2px rgba(12, 30, 40, 0.4));
+}
+
+.snakes-token-active svg {
+  filter: drop-shadow(0 0 3px #fff3b0);
+}
+
+.snakes-token:focus-visible {
+  outline: 3px solid #fff3b0;
+  outline-offset: 3px;
+  border-radius: 50%;
+}
+
 .token-btn {
   position: absolute;
   transform: translate(-50%, -50%);
